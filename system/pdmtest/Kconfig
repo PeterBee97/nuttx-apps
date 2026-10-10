@@ -1,0 +1,28 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config SYSTEM_PDMTEST
+	tristate "Stereo PDM microphone test"
+	default n
+	depends on TITAN_MINI_PDM
+	help
+		Read interleaved stereo PCM from /dev/pdm0 and report per-channel
+		level, channel difference, exact-match ratio and correlation.
+
+if SYSTEM_PDMTEST
+
+config SYSTEM_PDMTEST_PROGNAME
+	string "Program name"
+	default "pdmtest"
+
+config SYSTEM_PDMTEST_PRIORITY
+	int "PDM test task priority"
+	default 100
+
+config SYSTEM_PDMTEST_STACKSIZE
+	int "PDM test stack size"
+	default 4096
+
+endif

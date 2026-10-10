@@ -1,0 +1,28 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config SYSTEM_CAMERATEST
+	tristate "V4L2 camera capture test"
+	default n
+	depends on VIDEO_STREAM
+	help
+		Capture one YUYV frame through /dev/video, report byte statistics
+		and optionally send the raw frame to an IPv4 TCP listener.
+
+if SYSTEM_CAMERATEST
+
+config SYSTEM_CAMERATEST_PROGNAME
+	string "Program name"
+	default "cameratest"
+
+config SYSTEM_CAMERATEST_PRIORITY
+	int "Camera test task priority"
+	default 100
+
+config SYSTEM_CAMERATEST_STACKSIZE
+	int "Camera test stack size"
+	default 4096
+
+endif

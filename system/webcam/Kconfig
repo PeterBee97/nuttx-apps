@@ -1,0 +1,38 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config SYSTEM_WEBCAM
+	tristate "Network webcam"
+	default n
+	depends on NET_TCP && VIDEO_STREAM
+	help
+		Serve a browser-based webcam page with QVGA YUYV video streamed
+		directly from /dev/video and 16 kHz signed 16-bit stereo audio
+		from /dev/pdm0.
+
+if SYSTEM_WEBCAM
+
+config SYSTEM_WEBCAM_PROGNAME
+	string "Program name"
+	default "webcam"
+
+config SYSTEM_WEBCAM_PRIORITY
+	int "Webcam server task priority"
+	default 100
+
+config SYSTEM_WEBCAM_STACKSIZE
+	int "Webcam server stack size"
+	default 4096
+
+config SYSTEM_WEBCAM_STREAM_STACKSIZE
+	int "Webcam stream thread stack size"
+	default 8192
+
+config SYSTEM_WEBCAM_PORT
+	int "Webcam HTTP port"
+	default 8080
+	range 1 65535
+
+endif
