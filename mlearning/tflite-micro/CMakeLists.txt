@@ -101,6 +101,11 @@ if(CONFIG_TFLITEMICRO)
 
   # Remove test file
   list(FILTER TFLITE_MICRO_SRCS EXCLUDE REGEX ".*test.cc")
+  if(CONFIG_TFLITEMICRO_ETHOSU)
+    list(FILTER TFLITE_MICRO_SRCS EXCLUDE REGEX "/micro/kernels/ethosu.cc$")
+    list(APPEND TFLITE_MICRO_SRCS ${CMAKE_CURRENT_LIST_DIR}/tflm_ethosu.cc)
+  endif()
+
   if(CONFIG_TFLITEMICRO_SYSLOG)
     list(FILTER TFLITE_MICRO_SRCS EXCLUDE REGEX "micro_log.cc")
     list(APPEND TFLITE_MICRO_SRCS ${CMAKE_CURRENT_LIST_DIR}/tflm_syslog.cc)
@@ -242,6 +247,29 @@ if(CONFIG_TFLITEMICRO)
       INCLUDE_DIRECTORIES
       ${INCDIR}
       ${NUTTX_BINARY_DIR}/apps/mlearning/tflite-micro/tflite-micro
+      COMPILE_FLAGS
+      ${COMMON_FLAGS})
+  endif()
+
+  if(CONFIG_TFLITEMICRO_ETHOSU_VWW)
+    set_source_files_properties(
+      ethosu_vww_model.S
+      PROPERTIES
+        COMPILE_DEFINITIONS
+        "ETHOSU_VWW_MODEL=\"${CMAKE_CURRENT_LIST_DIR}/models/vww96_u55_256.tflite\""
+    )
+    nuttx_add_application(
+      NAME
+      tflm_ethosu_vww
+      STACKSIZE
+      ${CONFIG_TFLITEMICRO_ETHOSU_VWW_STACKSIZE}
+      PRIORITY
+      ${CONFIG_TFLITEMICRO_ETHOSU_VWW_PRIORITY}
+      SRCS
+      ethosu_vww_main.cc
+      ethosu_vww_model.S
+      INCLUDE_DIRECTORIES
+      ${INCDIR}
       COMPILE_FLAGS
       ${COMMON_FLAGS})
   endif()

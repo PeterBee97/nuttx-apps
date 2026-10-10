@@ -84,6 +84,11 @@ CXXSRCS += $(wildcard $(TFLM_DIR)/tensorflow/lite/micro/tflite_bridge/*.cc)
 CXXSRCS += $(wildcard $(TFLM_DIR)/tensorflow/lite/schema/*.cc)
 CXXSRCS := $(filter-out %test.cc, $(CXXSRCS))
 
+ifneq ($(CONFIG_TFLITEMICRO_ETHOSU),)
+CXXSRCS := $(filter-out %/micro/kernels/ethosu.cc, $(CXXSRCS))
+CXXSRCS += tflm_ethosu.cc
+endif
+
 ifneq ($(CONFIG_TFLITEMICRO_SYSLOG),)
   CXXSRCS := $(filter-out %micro_log.cc, $(CXXSRCS))
   CXXSRCS += $(wildcard $(CURDIR)/tflm_syslog.cc)
@@ -146,6 +151,15 @@ PROGNAME  += tflm_hello
 PRIORITY  += $(CONFIG_TFLITEMICRO_HELLOWORLD_PRIORITY)
 STACKSIZE += $(CONFIG_TFLITEMICRO_HELLOWORLD_STACKSIZE)
 MAINSRC   += $(TFLM_HW_DIR)/hello_world_test.cc
+endif
+
+ifneq ($(CONFIG_TFLITEMICRO_ETHOSU_VWW),)
+PROGNAME  += tflm_ethosu_vww
+PRIORITY  += $(CONFIG_TFLITEMICRO_ETHOSU_VWW_PRIORITY)
+STACKSIZE += $(CONFIG_TFLITEMICRO_ETHOSU_VWW_STACKSIZE)
+MAINSRC   += ethosu_vww_main.cc
+ASRCS     += ethosu_vww_model.S
+AFLAGS    += -DETHOSU_VWW_MODEL=\"$(CURDIR)/models/vww96_u55_256.tflite\"
 endif
 
 CFLAGS   += ${COMMON_FLAGS}

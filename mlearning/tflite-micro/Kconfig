@@ -66,4 +66,46 @@ config TFLITEMICRO_HELLOWORLD_STACKSIZE
 	default 4096
 
 endif # TFLITEMICRO_HELLOWORLD
+
+config TFLITEMICRO_ETHOSU
+	bool "Arm Ethos-U custom operator"
+	default n
+	depends on AI_ENGINE_ETHOSU
+	help
+		Build the TFLite Micro Ethos-U custom operator and connect it to a
+		NuttX Ethos-U AI engine character device.
+
+if TFLITEMICRO_ETHOSU
+
+config TFLITEMICRO_ETHOSU_DEVPATH
+	string "Ethos-U device path"
+	default "/dev/ethosu0"
+
+endif # TFLITEMICRO_ETHOSU
+
+config TFLITEMICRO_ETHOSU_VWW
+	bool "Ethos-U55 VWW96 inference example"
+	default n
+	depends on TFLITEMICRO_ETHOSU
+	help
+		Embed an Apache-2.0 Vela-compiled visual wake-word model and add
+		the tflm_ethosu_vww command.  It runs one zero-input inference
+		and reports output values, elapsed time and NPU PMU cycles.
+
+if TFLITEMICRO_ETHOSU_VWW
+
+config TFLITEMICRO_ETHOSU_VWW_PRIORITY
+	int "Ethos-U55 example priority"
+	default 100
+
+config TFLITEMICRO_ETHOSU_VWW_STACKSIZE
+	int "Ethos-U55 example stack size"
+	default 8192
+
+config TFLITEMICRO_ETHOSU_VWW_ARENA_SIZE
+	int "Ethos-U55 example tensor arena size"
+	default 131072
+	range 98304 262144
+
+endif # TFLITEMICRO_ETHOSU_VWW
 endif # TFLITEMICRO
