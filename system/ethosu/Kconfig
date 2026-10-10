@@ -1,0 +1,28 @@
+#
+# For a description of the syntax of this configuration file, see
+# the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config SYSTEM_ETHOSU
+	tristate "Ethos-U diagnostic tool"
+	default n
+	depends on AI_ENGINE_ETHOSU
+	help
+		Query an Ethos-U character device and print its driver, architecture,
+		command-stream and MAC configuration.
+
+if SYSTEM_ETHOSU
+
+config SYSTEM_ETHOSU_PROGNAME
+	string "Program name"
+	default "ethosu"
+
+config SYSTEM_ETHOSU_PRIORITY
+	int "Ethos-U tool task priority"
+	default 100
+
+config SYSTEM_ETHOSU_STACKSIZE
+	int "Ethos-U tool stack size"
+	default 2048
+
+endif

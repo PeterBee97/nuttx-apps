@@ -1,0 +1,9 @@
+############################################################################
+# apps/system/ethosu/Make.defs
+#
+# SPDX-License-Identifier: Apache-2.0
+############################################################################
+
+ifneq ($(CONFIG_SYSTEM_ETHOSU),)
+CONFIGURED_APPS += $(APPDIR)/system/ethosu
+endif
