@@ -84,9 +84,24 @@ CXXSRCS += $(wildcard $(TFLM_DIR)/tensorflow/lite/micro/tflite_bridge/*.cc)
 CXXSRCS += $(wildcard $(TFLM_DIR)/tensorflow/lite/schema/*.cc)
 CXXSRCS := $(filter-out %test.cc, $(CXXSRCS))
 
+ifeq ($(CONFIG_TFLITEMICRO_TITAN_INTENT_ONLY),y)
+INTENT_KERNELS := $(TFLM_DIR)/tensorflow/lite/micro/kernels/kernel_util.cc
+INTENT_KERNELS += $(TFLM_DIR)/tensorflow/lite/micro/kernels/reshape.cc
+INTENT_KERNELS += $(TFLM_DIR)/tensorflow/lite/micro/kernels/reshape_common.cc
+CXXSRCS := $(filter-out $(TFLM_DIR)/tensorflow/lite/micro/kernels/%.cc,$(CXXSRCS))
+CXXSRCS += $(INTENT_KERNELS)
+endif
+
 ifneq ($(CONFIG_TFLITEMICRO_ETHOSU),)
 CXXSRCS := $(filter-out %/micro/kernels/ethosu.cc, $(CXXSRCS))
 CXXSRCS += tflm_ethosu.cc
+endif
+
+ifneq ($(CONFIG_TFLITEMICRO_TITAN_INTENT),)
+CXXSRCS += tflm_titan_intent.cc
+ASRCS   += titan_intent_models.S
+AFLAGS  += -DTITAN_WAKE_MODEL=\"$(CURDIR)/models/titan_intent/wake.tflite\"
+AFLAGS  += -DTITAN_COMMAND_MODEL=\"$(CURDIR)/models/titan_intent/command.tflite\"
 endif
 
 ifneq ($(CONFIG_TFLITEMICRO_SYSLOG),)

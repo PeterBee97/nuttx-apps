@@ -101,9 +101,28 @@ if(CONFIG_TFLITEMICRO)
 
   # Remove test file
   list(FILTER TFLITE_MICRO_SRCS EXCLUDE REGEX ".*test.cc")
+  if(CONFIG_TFLITEMICRO_TITAN_INTENT_ONLY)
+    list(FILTER TFLITE_MICRO_SRCS EXCLUDE REGEX "/micro/kernels/.*\\.cc$")
+    list(
+      APPEND
+      TFLITE_MICRO_SRCS
+      ${TFLITE_MICRO_DIR}/tensorflow/lite/micro/kernels/kernel_util.cc
+      ${TFLITE_MICRO_DIR}/tensorflow/lite/micro/kernels/reshape.cc
+      ${TFLITE_MICRO_DIR}/tensorflow/lite/micro/kernels/reshape_common.cc)
+  endif()
   if(CONFIG_TFLITEMICRO_ETHOSU)
     list(FILTER TFLITE_MICRO_SRCS EXCLUDE REGEX "/micro/kernels/ethosu.cc$")
     list(APPEND TFLITE_MICRO_SRCS ${CMAKE_CURRENT_LIST_DIR}/tflm_ethosu.cc)
+  endif()
+
+  if(CONFIG_TFLITEMICRO_TITAN_INTENT)
+    list(APPEND TFLITE_MICRO_SRCS tflm_titan_intent.cc titan_intent_models.S)
+    set_source_files_properties(
+      titan_intent_models.S
+      PROPERTIES
+        COMPILE_DEFINITIONS
+        "TITAN_WAKE_MODEL=\"${CMAKE_CURRENT_LIST_DIR}/models/titan_intent/wake.tflite\";TITAN_COMMAND_MODEL=\"${CMAKE_CURRENT_LIST_DIR}/models/titan_intent/command.tflite\""
+    )
   endif()
 
   if(CONFIG_TFLITEMICRO_SYSLOG)

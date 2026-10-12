@@ -108,4 +108,39 @@ config TFLITEMICRO_ETHOSU_VWW_ARENA_SIZE
 	range 98304 262144
 
 endif # TFLITEMICRO_ETHOSU_VWW
+
+config TFLITEMICRO_TITAN_INTENT
+	bool "Titan U55 local speech models"
+	default n
+	depends on TFLITEMICRO_ETHOSU
+	select AUDIOUTILS_TITAN_INTENT
+	select AUDIOUTILS_TITAN_VOICEFE
+	select AUDIOUTILS_TITAN_VOICEFE_FEATURES
+	help
+		Embed two INT8 Vela models and static NPU-visible tensor arenas.
+		The model pair and quantization metadata must match the shared
+		fixed-point feature extractor.
+
+if TFLITEMICRO_TITAN_INTENT
+
+config TFLITEMICRO_TITAN_INTENT_WAKE_ARENA
+	int "Wake tensor arena bytes"
+	default 32768
+	range 16384 32768
+
+config TFLITEMICRO_TITAN_INTENT_COMMAND_ARENA
+	int "Command tensor arena bytes"
+	default 65536
+	range 24576 65536
+
+config TFLITEMICRO_TITAN_INTENT_ONLY
+	bool "Build only operators used by Titan intent"
+	default y
+	depends on !TFLITEMICRO_TOOL && !TFLITEMICRO_HELLOWORLD
+	depends on !TFLITEMICRO_ETHOSU_VWW && !MLEARNING_CMSIS_NN
+	help
+		Exclude unrelated CPU inference kernels. The model pair uses
+		Ethos-U and optionally a static reshape at its boundary.
+
+endif # TFLITEMICRO_TITAN_INTENT
 endif # TFLITEMICRO

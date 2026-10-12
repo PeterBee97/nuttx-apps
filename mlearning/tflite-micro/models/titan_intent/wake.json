@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "kind": "wake",
+  "seed": 20261012,
+  "smoke_only": true,
+  "channels_multiplier": 1.0,
+  "feature": {
+    "window": 400,
+    "hop": 320,
+    "fft": 512,
+    "mels": 40,
+    "sample_rate": 16000,
+    "representation": "round(log2(power+1)*8)-128",
+    "silence": -128,
+    "source_hashes": {
+      "voicefe_features.c": "8a5d736cda790f763c8be60bc6006d0d12756c4123a48b5b23493d665a9d2a1f",
+      "voicefe_fft.c": "19f6e075ac2a9a0d32f3d0dd63c89a781b548310dd7db51338eedc4d11da1142",
+      "voicefe_feature_tables.h": "65cf4995b02397d45322d4ff93074c861dd222bb29ee5158cc0b1e3385680710"
+    }
+  },
+  "input": {
+    "name": "serving_default_log_mel:0",
+    "shape": [
+      1,
+      99,
+      40,
+      1
+    ],
+    "scale": 0.6901960968971252,
+    "zero_point": 57,
+    "dtype": "int8",
+    "silence": -128
+  },
+  "output": {
+    "name": "StatefulPartitionedCall:0",
+    "shape": [
+      1,
+      4
+    ],
+    "scale": 0.002474981127306819,
+    "zero_point": -58,
+    "dtype": "int8"
+  },
+  "representative_split": "train",
+  "representative_count": 48,
+  "int8_sha256": "3cf658e11e33aaff62edeecf8190cf01d5df9a0f109c6433bc6dd27bfc9f437b",
+  "int8_bytes": 7624,
+  "vela": {
+    "version": "4.0.1",
+    "command": [
+      "--accelerator-config=ethos-u55-256",
+      "--system-config=Ethos_U55_High_End_Embedded",
+      "--memory-mode=Shared_Sram",
+      "--show-cpu-operations",
+      "--optimise=Size",
+      "--output-dir=/Users/bytedance/voicefe-intent-training/smoke-wake/vela"
+    ],
+    "cpu_ops": [],
+    "custom_ops": [
+      "ethos-u"
+    ],
+    "bytes": 23344,
+    "sha256": "e74dbe0fdcd374b1182f9995dca8b823b08db777272a8902f3affc1e8287717a",
+    "system_config_is_hardware_measurement": false
+  }
+}
