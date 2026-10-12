@@ -1,0 +1,9 @@
+############################################################################
+# apps/system/titan_voice/Make.defs
+#
+# SPDX-License-Identifier: Apache-2.0
+############################################################################
+
+ifneq ($(CONFIG_SYSTEM_TITAN_VOICE),)
+CONFIGURED_APPS += $(APPDIR)/system/titan_voice
+endif

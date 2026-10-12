@@ -1,0 +1,174 @@
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+
+menuconfig SYSTEM_TITAN_VOICE
+	bool "Titan Mini voice front end"
+	default n
+	depends on TITAN_MINI_PDM && !BUILD_KERNEL
+	select AUDIOUTILS_TITAN_VOICEFE
+	help
+		Start explicitly with voicefe. Capture and network use separate
+		workers and static PCM queues.
+
+if SYSTEM_TITAN_VOICE
+
+config SYSTEM_TITAN_VOICE_ASR_HTTP
+	bool "Chunked HTTP ASR upload"
+	default y if NET_TCP && NET_IPv4
+	depends on NET_TCP && NET_IPv4
+
+config SYSTEM_TITAN_VOICE_INTENT
+	bool "Local U55 wake and finite commands"
+	default n
+	depends on TFLITEMICRO_TITAN_INTENT
+	select SYSTEM_TITAN_VOICE_VAD
+
+if SYSTEM_TITAN_VOICE_INTENT
+
+config SYSTEM_TITAN_VOICE_INTENT_TELEMETRY
+	bool "Send local events and state to the TUI backend"
+	default n
+	depends on NET_TCP && NET_IPv4
+
+config SYSTEM_TITAN_VOICE_INTENT_DEVICE
+	string "Device event identifier"
+	default "titan-mini"
+
+config SYSTEM_TITAN_VOICE_INTENT_STACKSIZE
+	int "Local ML worker stack bytes"
+	default 8192
+	range 4096 16384
+
+config SYSTEM_TITAN_VOICE_INTENT_PRIORITY
+	int "Local ML worker priority"
+	default 110
+
+config SYSTEM_TITAN_VOICE_INTENT_QUEUE
+	int "Local ML PCM queue blocks"
+	default 20
+	range 10 20
+
+config SYSTEM_TITAN_VOICE_INTENT_WINDOW_MS
+	int "Double wake next utterance window (ms)"
+	default 8000
+	range 1000 8000
+
+config SYSTEM_TITAN_VOICE_INTENT_COOLDOWN_MS
+	int "Same action cooldown (ms)"
+	default 1000
+	range 0 5000
+
+config SYSTEM_TITAN_VOICE_INTENT_END_MS
+	int "Local command silence endpoint (ms)"
+	default 250
+	range 250 250
+
+config SYSTEM_TITAN_VOICE_INTENT_MAX_MS
+	int "Maximum command speech span (ms)"
+	default 4000
+	range 4000 4000
+
+config SYSTEM_TITAN_VOICE_INTENT_WAKE_SCORE
+	int "Wake posterior Q15 (-1 uses model metadata)"
+	default -1
+	range -1 32768
+
+config SYSTEM_TITAN_VOICE_INTENT_WAKE_MARGIN
+	int "Wake posterior margin Q15 (-1 uses metadata)"
+	default -1
+	range -1 32768
+
+config SYSTEM_TITAN_VOICE_INTENT_COMMAND_SCORE
+	int "Command posterior Q15 (-1 uses metadata)"
+	default -1
+	range -1 32768
+
+config SYSTEM_TITAN_VOICE_INTENT_COMMAND_MARGIN
+	int "Command posterior margin Q15 (-1 uses metadata)"
+	default -1
+	range -1 32768
+
+endif
+
+config SYSTEM_TITAN_VOICE_BF
+	bool "Allow delay-and-sum mode"
+	default y
+
+config SYSTEM_TITAN_VOICE_VAD
+	bool "Energy VAD"
+	default y
+
+config SYSTEM_TITAN_VOICE_NS
+	bool "Enable spectral noise suppression"
+	default n
+	select AUDIOUTILS_TITAN_VOICEFE_NS
+	help
+		Process mono PCM before upload. VAD uses the unprocessed signal
+		to avoid losing quiet speech. Disable at runtime with -n 0.
+
+config SYSTEM_TITAN_VOICE_DEBUG_CAPTURE
+	bool "Capture diagnostics command"
+	default y
+
+config SYSTEM_TITAN_VOICE_PROFILE
+	bool "Measure DSP and enqueue cycles"
+	default n
+	depends on ARCH_HAVE_PERF_EVENTS
+	select ARCH_PERF_EVENTS
+
+config SYSTEM_TITAN_VOICE_STACKSIZE
+	int "Capture worker stack"
+	default 4096
+
+config SYSTEM_TITAN_VOICE_NET_STACKSIZE
+	int "Upload worker stack"
+	default 6144
+
+config SYSTEM_TITAN_VOICE_PRIORITY
+	int "Capture priority"
+	default 120
+
+config SYSTEM_TITAN_VOICE_NET_PRIORITY
+	int "Upload priority"
+	default 100
+
+config SYSTEM_TITAN_VOICE_BLOCK_MS
+	int "DSP block duration (ms)"
+	default 10
+	range 10 10
+
+config SYSTEM_TITAN_VOICE_PREROLL_MS
+	int "Pre-roll (ms)"
+	default 300
+	range 30 500
+
+config SYSTEM_TITAN_VOICE_HANGOVER_MS
+	int "VAD hangover (ms)"
+	default 800
+	range 100 2000
+
+config SYSTEM_TITAN_VOICE_MAX_UTTERANCE_MS
+	int "Maximum utterance (ms)"
+	default 20000
+	range 1000 20000
+
+config SYSTEM_TITAN_VOICE_HOST
+	string "ASR IPv4 address"
+	default "192.168.77.1"
+
+config SYSTEM_TITAN_VOICE_PORT
+	int "ASR port"
+	default 8008
+	range 1 65535
+
+config SYSTEM_TITAN_VOICE_LEFT_GAIN
+	int "Persisted left Q15 gain"
+	default 32768
+	range 4096 65536
+
+config SYSTEM_TITAN_VOICE_RIGHT_GAIN
+	int "Persisted right Q15 gain"
+	default 32768
+	range 4096 65536
+
+endif
