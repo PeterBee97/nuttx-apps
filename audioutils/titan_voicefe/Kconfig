@@ -1,0 +1,38 @@
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+
+config AUDIOUTILS_TITAN_VOICEFE
+	bool "Fixed-point stereo voice front end"
+	default n
+	help
+		DC blocking, Q15 gain, bounded delay-and-sum and energy VAD.
+		No allocation or OS services are used by these primitives.
+
+if AUDIOUTILS_TITAN_VOICEFE
+
+config AUDIOUTILS_TITAN_VOICEFE_NS
+	bool "Fixed-point spectral noise suppression"
+	default n
+	help
+		20 ms sine-windowed spectral gain with 10 ms overlap and
+		adapting noise estimates. Requires about 8 KiB static state.
+
+config AUDIOUTILS_TITAN_VOICEFE_NS_FLOOR
+	int "Minimum spectral amplitude gain (Q15)"
+	default 8192
+	range 4096 16384
+	depends on AUDIOUTILS_TITAN_VOICEFE_NS
+	help
+		8192 limits suppression to approximately 12 dB. Higher values
+		retain more background and reduce weak-speech attenuation.
+
+config AUDIOUTILS_TITAN_VOICEFE_FEATURES
+	bool "Fixed-point log Mel features"
+	default n
+	help
+		400 sample Hann window, 320 sample hop, shared 512 point FFT
+		and 40 Mel bands for 16 kHz local speech classification.
+		State uses about 6.2 KiB; tables and buffers are excluded
+		when this option is disabled.
+
+endif
