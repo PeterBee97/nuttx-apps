@@ -1,0 +1,9 @@
+############################################################################
+# apps/audioutils/titan_intent/Make.defs
+#
+# SPDX-License-Identifier: Apache-2.0
+############################################################################
+
+ifneq ($(CONFIG_AUDIOUTILS_TITAN_INTENT),)
+CONFIGURED_APPS += $(APPDIR)/audioutils/titan_intent
+endif

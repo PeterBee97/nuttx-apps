@@ -1,0 +1,10 @@
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+
+config AUDIOUTILS_TITAN_INTENT
+	bool "Titan local voice intent policy"
+	default n
+	help
+		Fixed-point confidence gate and finite command state machine.
+		No audio capture, inference, allocation or networking is done
+		by this library.
