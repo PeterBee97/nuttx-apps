@@ -18,6 +18,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#ifdef CONFIG_SYSTEM_TITAN_VOICE_PROFILE
+#include <nuttx/clock.h>
+#endif
 #include <audioutils/titan_voicefe.h>
 
 #include "voicefe_intent.h"
@@ -221,6 +224,10 @@ static void voicefe_ml_block(const struct titan_intent_block_s *block)
   uint64_t duration;
   unsigned int count;
   uint64_t first;
+#ifdef CONFIG_SYSTEM_TITAN_VOICE_PROFILE
+  uint32_t started;
+  uint32_t elapsed;
+#endif
 
   if (block->generation != g_ml.gate.state.generation)
     {
@@ -238,10 +245,23 @@ static void voicefe_ml_block(const struct titan_intent_block_s *block)
 
   g_ml.sequence_valid = true;
   g_ml.expected = block->sequence + 1;
+#ifdef CONFIG_SYSTEM_TITAN_VOICE_PROFILE
+  started = perf_gettime();
+#endif
   if (voicefe_features_push(&g_ml.features, block->pcm, row))
     {
       memcpy(g_ml.ring[g_ml.rows++ % VI_RING_ROWS], row, sizeof(row));
     }
+
+#ifdef CONFIG_SYSTEM_TITAN_VOICE_PROFILE
+  elapsed = (uint32_t)perf_gettime() - started;
+  g_ml.stats.feature_cycles += elapsed;
+  g_ml.stats.feature_blocks++;
+  if (elapsed > g_ml.stats.feature_maxcycles)
+    {
+      g_ml.stats.feature_maxcycles = elapsed;
+    }
+#endif
 
   /* The first 500 ms are the existing VAD background calibration. */
 
@@ -557,6 +577,14 @@ void voicefe_intent_print(bool events)
          " snapshot_busy=%" PRIu32 " event_drop=%" PRIu32 "\n",
          stats.highwater, VI_QUEUE, stats.overruns, stats.snapshot_busy,
          stats.event_drop);
+#ifdef CONFIG_SYSTEM_TITAN_VOICE_PROFILE
+  printf("ML features blocks=%" PRIu32 " cycles=%" PRIu64
+         " avg=%" PRIu64 " max=%" PRIu32 " frequency=%lu\n",
+         stats.feature_blocks, stats.feature_cycles,
+         stats.feature_blocks == 0 ? 0 :
+         stats.feature_cycles / stats.feature_blocks,
+         stats.feature_maxcycles, perf_getfreq());
+#endif
   printf("U55 wake=%" PRIu32 " (%" PRIu64 " cycles, %" PRIu32
          " us) command=%" PRIu32 " (%" PRIu64 " cycles, %" PRIu32
          " us) failed=%" PRIu32 "\n", stats.wake_invokes, stats.wake_cycles,

@@ -52,6 +52,8 @@ static unsigned int g_marker_quiet;
 static uint64_t g_host_wake[2];
 static uint64_t g_host_actions[TITAN_INTENT_ACTIONS];
 static uint64_t g_host_events;
+static bool g_host_force_companion;
+static uint64_t g_host_companion_rearms;
 
 /****************************************************************************
  * Public Functions
@@ -116,6 +118,8 @@ void host_inference_init(host_model_t model, uint32_t wake_scale,
   memset(g_host_wake, 0, sizeof(g_host_wake));
   memset(g_host_actions, 0, sizeof(g_host_actions));
   g_host_events = 0;
+  g_host_force_companion = false;
+  g_host_companion_rearms = 0;
   g_sequence = 0;
   g_marker = 0;
   g_marker_count = 0;
@@ -128,6 +132,17 @@ void host_inference_init(host_model_t model, uint32_t wake_scale,
   titan_intent_init(&g_ml.gate, &policy, 1);
   g_ml.gate.state.active[TITAN_MODE_COMPANION] = companion;
   voicefe_ml_clear();
+}
+
+void host_inference_force_companion(bool enabled)
+{
+  g_host_force_companion = enabled;
+}
+
+void host_inference_authorize_window(void)
+{
+  g_ml.gate.state.wake_deadline =
+    (uint64_t)g_sequence * 10 + g_ml.gate.policy.window_ms;
 }
 
 void host_inference_feed(const int16_t *pcm, size_t samples)
@@ -152,6 +167,19 @@ void host_inference_feed(const int16_t *pcm, size_t samples)
       block.speech = voicefe_speech(&g_dsp, block.pcm);
       if (block.speech && g_marker == 0)
         {
+          /* Keep continuous UNKNOWN evaluation authorized after a false
+           * companion-exit result. This is a host test condition only.
+           */
+
+          if (g_host_force_companion &&
+              !g_ml.gate.state.active[TITAN_MODE_COMPANION])
+            {
+              g_ml.gate.state.active[TITAN_MODE_COMPANION] = true;
+              g_ml.gate.state.started[TITAN_MODE_COMPANION] =
+                ++g_ml.gate.state.order;
+              g_host_companion_rearms++;
+            }
+
           g_marker = ++g_marker_count;
           g_marker_start = (uint64_t)g_sequence * VOICEFE_FRAMES;
         }
@@ -203,4 +231,5 @@ void host_inference_counts(uint64_t *values)
   values[13] = g_ml.gate.state.too_long;
   values[14] = g_ml.gate.state.denied;
   values[15] = g_marker_count;
+  values[16] = g_host_companion_rearms;
 }

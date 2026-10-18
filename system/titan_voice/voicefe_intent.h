@@ -35,6 +35,11 @@ struct voicefe_intent_stats_s
   uint32_t missed_wake;
   uint32_t snapshot_busy;
   uint32_t event_drop;
+#ifdef CONFIG_SYSTEM_TITAN_VOICE_PROFILE
+  uint64_t feature_cycles;
+  uint32_t feature_blocks;
+  uint32_t feature_maxcycles;
+#endif
 };
 
 /****************************************************************************

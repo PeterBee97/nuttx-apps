@@ -425,6 +425,19 @@ static void *voicefe_rt(void *arg)
 #endif
     }
 
+  /* Stop the producer as soon as its reader exits, even while the task
+   * leader is waiting for a network timeout.
+   */
+
+  pthread_mutex_lock(&g_pdm_lock);
+  if (g_voice.fd >= 0)
+    {
+      ioctl(g_voice.fd, PDMIOC_GETSTATS, (unsigned long)&g_voice.pdm);
+      close(g_voice.fd);
+      g_voice.fd = -1;
+    }
+
+  pthread_mutex_unlock(&g_pdm_lock);
   atomic_store(&g_voice.session, VF_ABORT);
   atomic_store(&g_voice.active, false);
   sem_post(&g_voice.wake);
@@ -1147,7 +1160,11 @@ static int voicefe_daemon(int argc, char **argv)
   while (!atomic_load(&g_voice.stop))
     {
       pthread_mutex_lock(&g_pdm_lock);
-      ioctl(g_voice.fd, PDMIOC_GETSTATS, (unsigned long)&g_voice.pdm);
+      if (g_voice.fd >= 0)
+        {
+          ioctl(g_voice.fd, PDMIOC_GETSTATS, (unsigned long)&g_voice.pdm);
+        }
+
       pthread_mutex_unlock(&g_pdm_lock);
 #ifdef CONFIG_SYSTEM_TITAN_VOICE_INTENT_TELEMETRY
       if (g_voice.intent)
@@ -1172,10 +1189,6 @@ static int voicefe_daemon(int argc, char **argv)
     }
 #endif
 
-  pthread_mutex_lock(&g_pdm_lock);
-  ioctl(g_voice.fd, PDMIOC_GETSTATS, (unsigned long)&g_voice.pdm);
-  pthread_mutex_unlock(&g_pdm_lock);
-  close(g_voice.fd);
   sem_destroy(&g_voice.begin);
   sem_destroy(&g_voice.wake);
   sem_post(&g_done);

@@ -1,0 +1,119 @@
+config TESTING_TITAN_ASR
+	bool "Titan distilled ASR board diagnostic"
+	default n
+	depends on TFLITEMICRO_ETHOSU
+	select AUDIOUTILS_TITAN_INTENT
+	select AUDIOUTILS_TITAN_VOICEFE
+	select AUDIOUTILS_TITAN_VOICEFE_FEATURES
+	select AUDIOUTILS_TITAN_ASR_STREAM
+
+if TESTING_TITAN_ASR
+
+config AUDIOUTILS_TITAN_ASR_STREAM
+	bool
+
+config TESTING_TITAN_ASR_FP32_MATH
+	bool "Use single precision decoder math"
+	default n
+	help
+		Use hardware supported single precision transcendental functions
+		in the diagnostic decoder while preserving double precision search
+		scores. This is experimental and requires transcript and confidence
+		comparison against the default decoder before use.
+
+config TESTING_TITAN_ASR_PROGNAME
+	string "Program name"
+	default "titan_asr"
+
+config TESTING_TITAN_ASR_MVE
+	bool "Experimental MVE decoder kernels"
+	default n
+	depends on ARCH_CORTEXM85 && ARCH_FPU
+	depends on TESTING_TITAN_ASR_FP32_MATH
+	help
+		Vectorize INT8 expansion and frame exponentials with Helium.
+		Keep beam search and language probabilities unchanged. Vector
+		exponentials approximate expf and require numerical and transcript
+		comparison before use. Disable this option for the scalar build.
+
+config TESTING_TITAN_ASR_INT8_EXP_CACHE
+	bool "Reuse INT8 alignment exponentials"
+	default n
+	help
+		Compute each quantized value exponential once per alignment frame.
+		Preserve double precision and the original summation order.
+		This uses approximately 2304 additional bytes of decoder stack.
+
+config TESTING_TITAN_ASR_OPT
+	bool "Experimental exact CTC search optimizations"
+	default n
+	depends on TESTING_TITAN_ASR_MVE
+	help
+		Measure LM lookup, prefix merge, logadd and frame setup costs.
+		Compare hash-based prefix lookup and higher-order-first LM
+		lookup against the original decoder in the diagnostic command.
+
+config TESTING_TITAN_ASR_PROFILE
+	bool "Enable detailed decoder timers"
+	default n
+	depends on TESTING_TITAN_ASR_OPT
+	help
+		Instrument decoder helpers for diagnostic cost attribution.
+		Keep disabled when comparing end-to-end latency.
+
+config TESTING_TITAN_ASR_LM_CACHE
+	bool "Reuse character language probabilities"
+	default n
+	help
+		Share language model lookups between beams with identical final
+		two character histories within each frame. Search and summation
+		order are preserved. Uses approximately 832 bytes of stack.
+
+config TESTING_TITAN_ASR_MIC_RATE
+	int "Measured microphone sample rate"
+	default 16000
+	range 16000 20000
+	help
+		Convert microphone samples to 16 kHz using a fractional delay
+		filter.
+		Use a measured rate because the PDM clock comes from MOCO.
+		The default keeps the original samples.
+
+config TESTING_TITAN_ASR_MIC_MEAN
+	bool "Average microphone channels"
+	default n
+	help
+		Average both microphone channels before feature extraction.
+
+config TESTING_TITAN_ASR_END_BLOCKS
+	int "Silence blocks before decoding"
+	default 25
+	range 25 100
+	help
+		Wait this many 10 ms silence blocks before decoding an utterance.
+
+config TESTING_TITAN_ASR_VAD_CONFIRM
+	bool "Confirm consecutive speech blocks"
+	default n
+	help
+		Ignore isolated VAD triggers before starting an utterance.
+		Keep the first confirmed speech block as the utterance start.
+
+if TESTING_TITAN_ASR_VAD_CONFIRM
+
+config TESTING_TITAN_ASR_VAD_START_BLOCKS
+	int "Speech blocks required to start"
+	default 3
+	range 2 10
+
+endif
+
+config TESTING_TITAN_ASR_PRIORITY
+	int "Priority"
+	default 100
+
+config TESTING_TITAN_ASR_STACKSIZE
+	int "Stack size"
+	default 16384
+
+endif

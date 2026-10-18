@@ -107,6 +107,15 @@ config TFLITEMICRO_ETHOSU_VWW_ARENA_SIZE
 	default 131072
 	range 98304 262144
 
+config TFLITEMICRO_ETHOSU_VWW_ONLY
+	bool "Build only operators used by Ethos-U VWW"
+	default n
+	depends on !TFLITEMICRO_TOOL && !TFLITEMICRO_HELLOWORLD
+	depends on !TFLITEMICRO_TITAN_INTENT && !MLEARNING_CMSIS_NN
+	help
+		Exclude unrelated CPU inference kernels. The VWW example uses
+		Ethos-U, pack, reshape and strided slice.
+
 endif # TFLITEMICRO_ETHOSU_VWW
 
 config TFLITEMICRO_TITAN_INTENT

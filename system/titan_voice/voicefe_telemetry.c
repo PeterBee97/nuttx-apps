@@ -138,6 +138,7 @@ static int telemetry_post(const char *host, int port, uint64_t seq)
   int ret;
   ssize_t received;
   bool accepted = false;
+  bool complete = false;
 
   fd = socket(AF_INET, SOCK_STREAM, 0);
   if (fd < 0)
@@ -153,15 +154,34 @@ static int telemetry_post(const char *host, int port, uint64_t seq)
   ret = connect(fd, (struct sockaddr *)&addr, sizeof(addr));
   if (ret < 0 && errno == EINPROGRESS)
     {
-      ret = telemetry_wait(fd, POLLOUT, deadline);
-      if (ret == 0)
+      /* Query connection state without triggering poll's speculative
+       * send-ready check and its synchronous not-connected log.
+       */
+
+      while (telemetry_now() < deadline)
         {
+          length = sizeof(addr);
+          ret = getpeername(fd, (struct sockaddr *)&addr, &length);
+          if (ret == 0)
+            {
+              break;
+            }
+
           length = sizeof(error);
-          ret = getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &length);
-          if (ret == 0 && error != 0)
+          if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &length) < 0)
+            {
+              ret = -errno;
+              break;
+            }
+
+          if (error != 0)
             {
               ret = -error;
+              break;
             }
+
+          usleep(10000);
+          ret = -ETIMEDOUT;
         }
     }
 
@@ -180,7 +200,7 @@ static int telemetry_post(const char *host, int port, uint64_t seq)
       ret = telemetry_send(fd, g_body, strlen(g_body), deadline);
     }
 
-  while (ret == 0 && used < sizeof(response) - 1)
+  while (ret == 0 && (complete || used < sizeof(response) - 1))
     {
       ret = telemetry_wait(fd, POLLIN, deadline);
       if (ret < 0)
@@ -188,14 +208,28 @@ static int telemetry_post(const char *host, int port, uint64_t seq)
           break;
         }
 
-      received = recv(fd, response + used, sizeof(response) - 1 - used, 0);
+      received = recv(fd, complete ? response : response + used,
+                      complete ? sizeof(response) :
+                      sizeof(response) - 1 - used, 0);
       if (received < 0 && (errno == EAGAIN || errno == EINTR))
         {
           ret = 0;
           continue;
         }
 
-      if (received <= 0)
+      if (received == 0)
+        {
+          ret = accepted ? 0 : -EPROTO;
+          break;
+        }
+
+      if (received < 0)
+        {
+          ret = -errno;
+          break;
+        }
+
+      if (complete)
         {
           ret = -EPROTO;
           break;
@@ -207,15 +241,14 @@ static int telemetry_post(const char *host, int port, uint64_t seq)
       if (body != NULL && strchr(body + 4, '}') != NULL)
         {
           ack = strstr(body + 4, "\"accepted_seq\"");
-          if (strncmp(response, "HTTP/1.1 200 ", 13) != 0 ||
-              ack == NULL || (ack = strchr(ack, ':')) == NULL ||
-              strtoull(ack + 1, NULL, 10) < seq)
-            {
-              ret = -EPROTO;
-            }
+          accepted = strncmp(response, "HTTP/1.1 200 ", 13) == 0 &&
+                     ack != NULL && (ack = strchr(ack, ':')) != NULL &&
+                     strtoull(ack + 1, NULL, 10) >= seq;
+          complete = true;
 
-          accepted = ret == 0;
-          break;
+          /* Consume FIN even for a rejected response.  Otherwise retries
+           * retain callbacks in active-close connections.
+           */
         }
     }
 

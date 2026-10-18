@@ -101,7 +101,8 @@ if(CONFIG_TFLITEMICRO)
 
   # Remove test file
   list(FILTER TFLITE_MICRO_SRCS EXCLUDE REGEX ".*test.cc")
-  if(CONFIG_TFLITEMICRO_TITAN_INTENT_ONLY)
+  if(CONFIG_TFLITEMICRO_TITAN_INTENT_ONLY OR CONFIG_TFLITEMICRO_ETHOSU_VWW_ONLY
+     OR CONFIG_TESTING_TITAN_ASR)
     list(FILTER TFLITE_MICRO_SRCS EXCLUDE REGEX "/micro/kernels/.*\\.cc$")
     list(
       APPEND
@@ -109,6 +110,15 @@ if(CONFIG_TFLITEMICRO)
       ${TFLITE_MICRO_DIR}/tensorflow/lite/micro/kernels/kernel_util.cc
       ${TFLITE_MICRO_DIR}/tensorflow/lite/micro/kernels/reshape.cc
       ${TFLITE_MICRO_DIR}/tensorflow/lite/micro/kernels/reshape_common.cc)
+    if(CONFIG_TFLITEMICRO_ETHOSU_VWW_ONLY)
+      list(
+        APPEND
+        TFLITE_MICRO_SRCS
+        ${TFLITE_MICRO_DIR}/tensorflow/lite/micro/kernels/pack.cc
+        ${TFLITE_MICRO_DIR}/tensorflow/lite/micro/kernels/strided_slice.cc
+        ${TFLITE_MICRO_DIR}/tensorflow/lite/micro/kernels/strided_slice_common.cc
+      )
+    endif()
   endif()
   if(CONFIG_TFLITEMICRO_ETHOSU)
     list(FILTER TFLITE_MICRO_SRCS EXCLUDE REGEX "/micro/kernels/ethosu.cc$")

@@ -84,10 +84,15 @@ CXXSRCS += $(wildcard $(TFLM_DIR)/tensorflow/lite/micro/tflite_bridge/*.cc)
 CXXSRCS += $(wildcard $(TFLM_DIR)/tensorflow/lite/schema/*.cc)
 CXXSRCS := $(filter-out %test.cc, $(CXXSRCS))
 
-ifeq ($(CONFIG_TFLITEMICRO_TITAN_INTENT_ONLY),y)
+ifneq ($(CONFIG_TFLITEMICRO_TITAN_INTENT_ONLY)$(CONFIG_TFLITEMICRO_ETHOSU_VWW_ONLY)$(CONFIG_TESTING_TITAN_ASR),)
 INTENT_KERNELS := $(TFLM_DIR)/tensorflow/lite/micro/kernels/kernel_util.cc
 INTENT_KERNELS += $(TFLM_DIR)/tensorflow/lite/micro/kernels/reshape.cc
 INTENT_KERNELS += $(TFLM_DIR)/tensorflow/lite/micro/kernels/reshape_common.cc
+ifeq ($(CONFIG_TFLITEMICRO_ETHOSU_VWW_ONLY),y)
+INTENT_KERNELS += $(TFLM_DIR)/tensorflow/lite/micro/kernels/pack.cc
+INTENT_KERNELS += $(TFLM_DIR)/tensorflow/lite/micro/kernels/strided_slice.cc
+INTENT_KERNELS += $(TFLM_DIR)/tensorflow/lite/micro/kernels/strided_slice_common.cc
+endif
 CXXSRCS := $(filter-out $(TFLM_DIR)/tensorflow/lite/micro/kernels/%.cc,$(CXXSRCS))
 CXXSRCS += $(INTENT_KERNELS)
 endif
