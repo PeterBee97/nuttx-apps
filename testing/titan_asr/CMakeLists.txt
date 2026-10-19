@@ -37,11 +37,33 @@ if(CONFIG_TESTING_TITAN_ASR)
     -DTF_LITE_STRIP_ERROR_STRINGS
     -Wno-shadow
     -Wno-undef)
+  if(CONFIG_TESTING_TITAN_ASR_DUPLEX)
+    target_sources(
+      apps_titan_asr PRIVATE asr_frontend.c speex/mdf.c speex/fftwrap.c
+                             speex/kiss_fft.c speex/kiss_fftr.c)
+    target_include_directories(apps_titan_asr
+                               PRIVATE ${CMAKE_CURRENT_LIST_DIR}/speex)
+    target_compile_definitions(apps_titan_asr PRIVATE HAVE_CONFIG_H)
+    set_source_files_properties(
+      asr_frontend.c speex/mdf.c speex/fftwrap.c speex/kiss_fft.c
+      speex/kiss_fftr.c PROPERTIES COMPILE_OPTIONS "-O2")
+    if(CONFIG_TESTING_TITAN_ASR_AEC_O3)
+      set_source_files_properties(
+        speex/mdf.c speex/fftwrap.c speex/kiss_fft.c speex/kiss_fftr.c
+        PROPERTIES COMPILE_OPTIONS "-O3")
+    endif()
+    if(CONFIG_TESTING_TITAN_ASR_RESIDUAL)
+      target_sources(apps_titan_asr PRIVATE speex/preprocess.c
+                                            speex/filterbank.c)
+      set_source_files_properties(speex/preprocess.c speex/filterbank.c
+                                  PROPERTIES COMPILE_OPTIONS "-O2")
+    endif()
+  endif()
   if(CONFIG_TESTING_TITAN_ASR_MVE)
     target_sources(apps_titan_asr PRIVATE asr_mve.c)
     set_source_files_properties(
       asr_mve.c PROPERTIES COMPILE_OPTIONS
-      "-march=armv8.1-m.main+mve.fp;-mfpu=auto")
+                           "-march=armv8.1-m.main+mve.fp;-mfpu=auto")
   endif()
   if(CONFIG_TESTING_TITAN_ASR_OPT)
     target_sources(apps_titan_asr PRIVATE asr_bench.c)

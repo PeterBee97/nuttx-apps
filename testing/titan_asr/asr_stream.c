@@ -1,7 +1,11 @@
 /****************************************************************************
- * asr_stream.c
+ * apps/testing/titan_asr/asr_stream.c
  *
  * SPDX-License-Identifier: Apache-2.0
+ ****************************************************************************/
+
+/****************************************************************************
+ * Included Files
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -11,8 +15,20 @@
 #include <errno.h>
 #include <math.h>
 #include <string.h>
+#ifdef CONFIG_TESTING_TITAN_ASR_DUPLEX
+#  include <stdio.h>
+#  include <inttypes.h>
+#endif
+#ifdef CONFIG_TESTING_TITAN_ASR_SNAPSHOT_TRACE
+#  include <nuttx/clock.h>
+#  include "asr_frontend.h"
+#endif
 
 #include "asr_stream.h"
+
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
 
 static void stream_clear(struct asr_stream_s *state)
 {
@@ -82,6 +98,13 @@ static int stream_invoke(struct asr_stream_s *state, bool wake,
   unsigned int frame;
   int length;
   int ret;
+#ifdef CONFIG_TESTING_TITAN_ASR_SNAPSHOT_TRACE
+  uint32_t profile[5];
+  uint64_t frontend[5];
+
+  profile[0] = perf_gettime();
+  frontend[0] = asr_frontend_ticks();
+#endif
 
   ret = state->config.model(wake, state->snapshot,
                             capacity * VOICEFE_MELS, state->logits,
@@ -102,6 +125,10 @@ static int stream_invoke(struct asr_stream_s *state, bool wake,
     }
 
   state->asr_invokes++;
+#ifdef CONFIG_TESTING_TITAN_ASR_SNAPSHOT_TRACE
+  profile[1] = perf_gettime();
+  frontend[1] = asr_frontend_ticks();
+#endif
   ret = asr_ctc_start(&state->workspace.decoder, &state->lm,
                       state->config.alpha, state->config.insertion_bonus,
                       state->config.blank_penalty);
@@ -122,6 +149,10 @@ static int stream_invoke(struct asr_stream_s *state, bool wake,
         }
     }
 
+#ifdef CONFIG_TESTING_TITAN_ASR_SNAPSHOT_TRACE
+  profile[2] = perf_gettime();
+  frontend[2] = asr_frontend_ticks();
+#endif
   memset(&state->transcript, 0, sizeof(state->transcript));
   length = asr_ctc_finish(&state->workspace.decoder,
                           state->transcript.tokens, ASR_CTC_FRAMES, NULL);
@@ -131,6 +162,10 @@ static int stream_invoke(struct asr_stream_s *state, bool wake,
     }
 
   state->transcript.length = length;
+#ifdef CONFIG_TESTING_TITAN_ASR_SNAPSHOT_TRACE
+  profile[3] = perf_gettime();
+  frontend[3] = asr_frontend_ticks();
+#endif
   ret = asr_postprocess_int8(&state->workspace.alignment, state->logits,
                              ASR_CTC_FRAMES, state->config.asr_scale,
                              state->config.asr_zero, &state->transcript,
@@ -139,6 +174,37 @@ static int stream_invoke(struct asr_stream_s *state, bool wake,
     {
       return ret;
     }
+
+#ifdef CONFIG_TESTING_TITAN_ASR_SNAPSHOT_TRACE
+  profile[4] = perf_gettime();
+  frontend[4] = asr_frontend_ticks();
+  printf("ASR_FRONTEND_PREEMPT sequence=%" PRIu32
+         " model=%" PRIu64 " search=%" PRIu64
+         " finish=%" PRIu64 " alignment=%" PRIu64 " us\n",
+         state->sequence,
+         (frontend[1] - frontend[0]) * 1000000 / perf_getfreq(),
+         (frontend[2] - frontend[1]) * 1000000 / perf_getfreq(),
+         (frontend[3] - frontend[2]) * 1000000 / perf_getfreq(),
+         (frontend[4] - frontend[3]) * 1000000 / perf_getfreq());
+  printf("ASR_LIVE_PROFILE sequence=%" PRIu32 " model=%" PRIu32
+         " search=%" PRIu32 " finish=%" PRIu32
+         " alignment=%" PRIu32 " us\n", state->sequence,
+         (uint32_t)((uint64_t)(profile[1] - profile[0]) *
+                    1000000 / perf_getfreq()),
+         (uint32_t)((uint64_t)(profile[2] - profile[1]) *
+                    1000000 / perf_getfreq()),
+         (uint32_t)((uint64_t)(profile[3] - profile[2]) *
+                    1000000 / perf_getfreq()),
+         (uint32_t)((uint64_t)(profile[4] - profile[3]) *
+                    1000000 / perf_getfreq()));
+#endif
+
+#ifdef CONFIG_TESTING_TITAN_ASR_DUPLEX
+  printf("ASR_DECODE sequence=%" PRIu32
+         " text=%s intent=%d confidence=%.4f\n",
+         state->sequence, state->transcript.text, state->transcript.intent,
+         state->transcript.confidence);
+#endif
 
   memset(score, 0, sizeof(*score));
   score->label = state->transcript.intent == ASR_SILENCE ?
@@ -153,6 +219,10 @@ static int stream_invoke(struct asr_stream_s *state, bool wake,
 
   return 0;
 }
+
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
 
 size_t asr_stream_bytes(void)
 {
@@ -277,14 +347,28 @@ int asr_stream_block(struct asr_stream_s *state,
           state->evaluated = true;
           first = state->turn_row;
           count = state->rows - first;
+#if defined(CONFIG_TESTING_TITAN_ASR_POSTROLL_ROWS) && \
+    CONFIG_TESTING_TITAN_ASR_POSTROLL_ROWS >= 0
+          unsigned int trailing = state->quiet / 2;
+
+          if (duration >=
+              (uint64_t)CONFIG_TESTING_TITAN_ASR_POSTROLL_MIN_MS * 16 &&
+              trailing > CONFIG_TESTING_TITAN_ASR_POSTROLL_ROWS)
+            {
+              trailing -= CONFIG_TESTING_TITAN_ASR_POSTROLL_ROWS;
+              count -= trailing < count ? trailing : count;
+            }
+#else
           if (count > VOICEFE_COMMAND_ROWS)
             {
               count -= state->quiet / 2;
-              if (count > VOICEFE_COMMAND_ROWS)
-                {
-                  first += count - VOICEFE_COMMAND_ROWS;
-                  count = VOICEFE_COMMAND_ROWS;
-                }
+            }
+#endif
+
+          if (count > VOICEFE_COMMAND_ROWS)
+            {
+              first += count - VOICEFE_COMMAND_ROWS;
+              count = VOICEFE_COMMAND_ROWS;
             }
 
           if (duration > 64000)
@@ -295,6 +379,15 @@ int asr_stream_block(struct asr_stream_s *state,
             }
           else
             {
+#ifdef CONFIG_TESTING_TITAN_ASR_SNAPSHOT_TRACE
+              printf("ASR_SNAPSHOT sequence=%" PRIu32
+                     " first=%" PRIu64 " count=%u rows=%" PRIu64
+                     " start=%" PRIu64 " last=%" PRIu64
+                     " duration=%" PRIu64 " quiet=%u\n",
+                     state->sequence, first, count, state->rows,
+                     block->start_sample, state->last_speech_sample,
+                     duration, state->quiet);
+#endif
               ret = stream_copy(state, first, count, false);
               if (ret == 0)
                 {
@@ -305,6 +398,20 @@ int asr_stream_block(struct asr_stream_s *state,
                 {
                   goto failed;
                 }
+
+#ifdef CONFIG_TESTING_TITAN_ASR_INLINE_TEXT_CONFIRM
+              if (state->gate.inline_seen &&
+                  strstr(state->transcript.text,
+                         "\xe8\xb1\x86\xe5\x8c\x85") !=
+                  state->transcript.text)
+                {
+                  /* A KWS false inline result must not authorize a bare
+                   * command. Companion and window permissions are retained.
+                   */
+
+                  state->gate.inline_seen = false;
+                }
+#endif
 
               if (titan_intent_candidate(&state->gate, block->utterance_id,
                                          block->generation, now, &score,
@@ -335,6 +442,45 @@ int asr_stream_block(struct asr_stream_s *state,
 
       titan_intent_wake(&state->gate, &score);
     }
+
+#ifdef CONFIG_TESTING_TITAN_ASR_WINDOW_TEXT_CONFIRM
+  if (block->marker_end && state->evaluated &&
+      state->gate.in_turn && state->gate.current == block->utterance_id &&
+      state->gate.inline_seen &&
+      state->transcript.confidence >= state->config.threshold &&
+      strcmp(state->transcript.text,
+             "\xe8\xb1\x86\xe5\x8c\x85\xe8\xb1\x86\xe5\x8c\x85") == 0)
+    {
+      state->gate.window_seen = true;
+    }
+#endif
+
+#ifdef CONFIG_TESTING_TITAN_ASR_INLINE_TEXT_CONFIRM
+  if (block->marker_end && state->evaluated &&
+      state->gate.in_turn && state->gate.current == block->utterance_id &&
+      strstr(state->transcript.text, "\xe8\xb1\x86\xe5\x8c\x85") !=
+      state->transcript.text)
+    {
+      state->gate.inline_seen = false;
+    }
+#endif
+
+#ifdef CONFIG_TESTING_TITAN_ASR_NEGATIVE_WAKE_VETO
+  if (block->marker_end && state->evaluated &&
+      state->gate.in_turn && state->gate.current == block->utterance_id &&
+      state->transcript.intent == ASR_UNKNOWN &&
+      state->transcript.confidence >= state->config.threshold &&
+      (strstr(state->transcript.text, "\xe4\xb8\x8d\xe8\xa6\x81") != NULL ||
+       strstr(state->transcript.text, "\xe4\xb8\x8d\xe7\x94\xa8") != NULL))
+    {
+      /* Explicit "buyao" or "buyong" negates this completed turn's wake.
+       * Apply after the final KWS update without changing authorization.
+       */
+
+      state->gate.inline_seen = false;
+      state->gate.window_seen = false;
+    }
+#endif
 
   if (block->marker_end &&
       titan_intent_end(&state->gate, block->utterance_id, now, &event))
@@ -376,26 +522,55 @@ int asr_stream_feed(struct asr_stream_s *state,
 
       voicefe_process(&state->dsp, stereo, block.pcm);
       block.speech = voicefe_speech(&state->dsp, block.pcm);
+#ifdef CONFIG_TESTING_TITAN_ASR_VAD_MIN_POWER
+      block.speech = block.speech &&
+                     state->dsp.energy >
+                     CONFIG_TESTING_TITAN_ASR_VAD_MIN_POWER;
+#endif
 #ifdef CONFIG_TESTING_TITAN_ASR_VAD_START_BLOCKS
       if (state->marker == 0)
         {
           if (!block.speech)
             {
               state->marker_speech = 0;
+#if CONFIG_TESTING_TITAN_ASR_VAD_ONSET_HOLD > 0
+              if (++state->onset_quiet >
+                  CONFIG_TESTING_TITAN_ASR_VAD_ONSET_HOLD)
+                {
+                  state->onset_pending = false;
+                }
+#endif
             }
           else
             {
+#if CONFIG_TESTING_TITAN_ASR_VAD_ONSET_HOLD > 0
+              state->onset_quiet = 0;
+              if (!state->onset_pending ||
+                  (uint64_t)state->sequence * VOICEFE_FRAMES -
+                  state->marker_start > 8000)
+                {
+                  state->marker_start =
+                    (uint64_t)state->sequence * VOICEFE_FRAMES;
+                  state->onset_pending = true;
+                }
+
+              state->marker_speech++;
+#else
               if (state->marker_speech++ == 0)
                 {
                   state->marker_start =
                     (uint64_t)state->sequence * VOICEFE_FRAMES;
                 }
+#endif
 
               if (state->marker_speech >=
                   CONFIG_TESTING_TITAN_ASR_VAD_START_BLOCKS)
                 {
                   state->marker = ++state->marker_count;
                   state->marker_speech = 0;
+#if CONFIG_TESTING_TITAN_ASR_VAD_ONSET_HOLD > 0
+                  state->onset_pending = false;
+#endif
                 }
             }
         }

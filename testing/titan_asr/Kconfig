@@ -85,12 +85,194 @@ config TESTING_TITAN_ASR_MIC_MEAN
 	help
 		Average both microphone channels before feature extraction.
 
+config TESTING_TITAN_ASR_DUPLEX
+	bool "Experimental dual-microphone acoustic echo cancellation"
+	default n
+	depends on TITAN_MINI_PDM_REFERENCE && ALLOW_BSD_COMPONENTS
+	depends on ARCH_HAVE_SETJMP
+	select AUDIOUTILS_TITAN_VOICEFE_NS
+	help
+		Enable titan_asr mic SECONDS MODE DUMP. Modes are 0 raw mean,
+		1 dual-channel AEC and mean, 2 AEC and beam, 3 AEC, beam and NS.
+		DUMP=1 writes six-channel 16 kHz PCM to USB CDC for measurement.
+		SpeexDSP uses a 40 ms filter and a 64 KiB initialization arena.
+		This diagnostic requires acoustic validation for double talk.
+
+config TESTING_TITAN_ASR_AEC_TAIL
+	int "AEC filter length in samples"
+	default 640
+	range 160 640
+	depends on TESTING_TITAN_ASR_DUPLEX
+	help
+		Length at 16 kHz. Longer filters model more acoustic reflections
+		but increase CPU use and initialization memory.
+
+config TESTING_TITAN_ASR_AEC_O3
+	bool "Experimental AEC compiler optimization"
+	default n
+	depends on TESTING_TITAN_ASR_DUPLEX
+	help
+		Compile the echo canceller and its FFT with O3 instead of O2.
+		Keep floating-point semantics and all acoustic parameters.
+		Compare PCM, transcripts, memory use and live latency before use.
+
+config TESTING_TITAN_ASR_RESIDUAL
+	bool "Experimental residual echo spectral suppression"
+	default n
+	depends on TESTING_TITAN_ASR_DUPLEX
+	help
+		Add mode 4 with Speex residual echo and noise suppression.
+		Use a 96 KiB arena for AEC and the spectral postprocessor.
+		Near-end speech retention requires double-talk validation.
+
+config TESTING_TITAN_ASR_REFERENCE_GAIN
+	int "AEC playback reference gain"
+	default 1
+	range 1 8
+	depends on TESTING_TITAN_ASR_DUPLEX
+	help
+		Scale the reference with saturation before echo cancellation.
+		Match reference power to the microphone echo to improve initial
+		adaptation. Verify clipping and near-end retention when raising.
+
+config TESTING_TITAN_ASR_ECHO_SUPPRESS
+	int "Residual echo suppression in dB"
+	default -40
+	range -80 -6
+	depends on TESTING_TITAN_ASR_RESIDUAL
+
+config TESTING_TITAN_ASR_ECHO_SUPPRESS_ACTIVE
+	int "Residual suppression during near-end speech in dB"
+	default -6
+	range -40 0
+	depends on TESTING_TITAN_ASR_RESIDUAL
+
+config TESTING_TITAN_ASR_ADAPTIVE_SUPPRESS
+	bool "Experimental energy-adaptive residual suppression"
+	default n
+	depends on TESTING_TITAN_ASR_RESIDUAL
+	help
+		Relax active suppression when smoothed AEC output power exceeds
+		a measured threshold. This is an experimental energy heuristic,
+		not a double-talk detector. Validate weak speech and far-end echo.
+
+config TESTING_TITAN_ASR_ADAPTIVE_NOISE
+	bool "Experimental speech-band adaptive noise floor"
+	default n
+	depends on TESTING_TITAN_ASR_RESIDUAL
+	help
+		Relax only the noise gain floor after eight consecutive frames
+		with high speech probability and speech-band power above the
+		residual echo estimate. Retain relaxation for ten quiet frames.
+		This gate requires weak-speech and playback regression and is
+		not a validated acoustic double-talk detector.
+
+if TESTING_TITAN_ASR_ADAPTIVE_SUPPRESS
+
+config TESTING_TITAN_ASR_ADAPTIVE_POWER
+	int "Smoothed AEC power required to relax suppression"
+	default 10000000
+	range 100000 100000000
+	help
+		Mean-square PCM power before spectral suppression, smoothed over
+		eight 10 ms frames. Calibrate against measured microphone input.
+
+config TESTING_TITAN_ASR_ADAPTIVE_HOLD
+	int "Frames to retain relaxed suppression"
+	default 30
+	range 1 100
+
+config TESTING_TITAN_ASR_ADAPTIVE_CONFIRM
+	int "Consecutive high-power frames before relaxing suppression"
+	default 1
+	range 1 30
+	help
+		Require sustained smoothed power to reject short residual peaks.
+		Check speech onset retention before increasing this value.
+
+config TESTING_TITAN_ASR_ADAPTIVE_DB
+	int "Relaxed active suppression in dB"
+	default -6
+	range -40 0
+
+config TESTING_TITAN_ASR_ADAPTIVE_TRACE
+	bool "Trace residual suppression transitions"
+	default n
+	help
+		Print only suppression transitions and their smoothed power.
+		Keep disabled for production and latency measurements.
+
+endif
+
+config TESTING_TITAN_ASR_SNAPSHOT_TRACE
+	bool "Save replay feature snapshots and model outputs"
+	default n
+	help
+		Save command snapshots and logits under /ram during digital
+		replay only. Print feature window boundaries for diagnosis.
+		Enable direct feature-file inference and replay suppression
+		isolation controls for fixed-window comparisons.
+		Keep disabled for production and latency measurements.
+
+config TESTING_TITAN_ASR_QUEUE_BLOCKS
+	int "Captured audio queue blocks"
+	default 128
+	range 128 512
+	help
+		Each block holds 10 ms of mono PCM and uses 320 bytes.
+		Buffer audio while the decoder completes an utterance.
+
+config TESTING_TITAN_ASR_CAPTURE_PRIORITY
+	int "Microphone capture priority"
+	default 120
+	range 1 255
+	depends on TESTING_TITAN_ASR_DUPLEX
+	help
+		Keep capture above decoder priority so audio can be drained
+		while a transcript is decoded.
+
+config TESTING_TITAN_ASR_ASYNC_DUMP
+	bool "Write frontend diagnostic PCM in a separate thread"
+	default n
+	depends on TESTING_TITAN_ASR_DUPLEX
+	help
+		Queue six-channel PCM for USB output without blocking microphone
+		capture. The diagnostic queue uses 240 KiB of heap when dumping
+		is requested. Queue exhaustion fails the capture explicitly.
+
+config TESTING_TITAN_ASR_BUFFERED_DUMP
+	bool "Export diagnostic PCM after microphone capture stops"
+	default n
+	depends on TESTING_TITAN_ASR_DUPLEX && !TESTING_TITAN_ASR_ASYNC_DUMP
+	help
+		Store up to 60 seconds of six-channel PCM in 11.52 MB of heap
+		and write it to USB after capture. Intended for boards with
+		external RAM, to avoid USB output disturbing live capture.
+
+config TESTING_TITAN_ASR_DECODE_PRIORITY
+	int "Microphone decoder priority"
+	default 110
+	range 1 255
+
 config TESTING_TITAN_ASR_END_BLOCKS
 	int "Silence blocks before decoding"
 	default 25
 	range 25 100
 	help
 		Wait this many 10 ms silence blocks before decoding an utterance.
+
+config TESTING_TITAN_ASR_MARKER_END
+	int "Silence blocks before ending the microphone turn"
+	default 80
+	range 25 100
+
+config TESTING_TITAN_ASR_VAD_MIN_POWER
+	int "Minimum microphone speech mean-square power"
+	default 10000
+	range 10000 1000000
+	help
+		Raise only after checking near-end speech and residual echo.
+		The default matches the voice frontend energy detector.
 
 config TESTING_TITAN_ASR_VAD_CONFIRM
 	bool "Confirm consecutive speech blocks"
@@ -99,12 +281,79 @@ config TESTING_TITAN_ASR_VAD_CONFIRM
 		Ignore isolated VAD triggers before starting an utterance.
 		Keep the first confirmed speech block as the utterance start.
 
+config TESTING_TITAN_ASR_PREROLL_ROWS
+	int "Feature rows retained before speech onset"
+	default 15
+	range 0 15
+	help
+		Each row covers 20 ms. Reduce only after checking that speech
+		onsets are retained and playback echo does not enter the turn.
+
+config TESTING_TITAN_ASR_MIN_CONFIDENCE
+	int "Minimum command confidence in percent"
+	default 0
+	range 0 100
+	help
+		Reject command actions below this transcript confidence.
+		Diagnostic transcripts remain visible for quality measurement.
+
+config TESTING_TITAN_ASR_NEGATIVE_WAKE_VETO
+	bool "Reject wake events for confidently transcribed negations"
+	default n
+	help
+		Veto inline and window wake events when the ASR transcript contains
+		the explicit Chinese negations buyao or buyong at the configured
+		minimum confidence. Preserve transcripts and command authorization.
+		Validate negative sentences and positive wake phrases separately.
+
+config TESTING_TITAN_ASR_INLINE_TEXT_CONFIRM
+	bool "Require ASR wake prefix for inline command authorization"
+	default n
+	help
+		Require a transcribed Doubao prefix before accepting KWS inline
+		authorization. Existing companion and window authorization remain
+		valid. Check inline command recall before enabling this experiment.
+
+config TESTING_TITAN_ASR_WINDOW_TEXT_CONFIRM
+	bool "Confirm repeated wake with KWS and ASR"
+	default n
+	depends on TESTING_TITAN_ASR_INLINE_TEXT_CONFIRM
+	help
+		Allow a confident exact repeated Doubao transcript to confirm a
+		window wake when KWS has accepted an inline wake. Require both
+		models; low-confidence transcripts do not open a window.
+
+config TESTING_TITAN_ASR_POSTROLL_ROWS
+	int "Maximum quiet feature rows after speech (-1 keeps all)"
+	default -1
+	range -1 15
+	help
+		Trim excess trailing quiet rows from the decode snapshot.
+		Each row covers 20 ms. Check weak speech endings before reducing.
+
+config TESTING_TITAN_ASR_POSTROLL_MIN_MS
+	int "Minimum speech duration for trailing-row trimming"
+	default 0
+	range 0 4000
+	depends on TESTING_TITAN_ASR_POSTROLL_ROWS >= 0
+	help
+		Keep the original trailing window for shorter utterances.
+
 if TESTING_TITAN_ASR_VAD_CONFIRM
 
 config TESTING_TITAN_ASR_VAD_START_BLOCKS
 	int "Speech blocks required to start"
 	default 3
-	range 2 10
+	range 2 30
+
+config TESTING_TITAN_ASR_VAD_ONSET_HOLD
+	int "Quiet blocks retaining an unconfirmed speech onset"
+	default 0
+	range 0 10
+	help
+		Keep the first onset across short gaps while still requiring
+		consecutive speech for confirmation. Zero preserves the original
+		onset reset. Pending onset history is limited to 500 ms.
 
 endif
 

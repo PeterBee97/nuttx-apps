@@ -20,4 +20,9 @@ ifeq ($(CONFIG_AUDIOUTILS_TITAN_VOICEFE_FEATURES),y)
 CSRCS += voicefe_features.c
 endif
 
+ifeq ($(CONFIG_TESTING_TITAN_ASR_DUPLEX),y)
+voicefe_fft.c_CFLAGS += -O2
+voicefe_ns.c_CFLAGS += -O2
+endif
+
 include $(APPDIR)/Application.mk

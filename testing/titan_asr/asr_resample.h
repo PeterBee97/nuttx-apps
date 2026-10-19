@@ -55,11 +55,12 @@ static inline bool asr_resample(struct asr_resample_s *state,
       state->phase -= input_rate;
       fraction = state->phase * 64 / 16000;
       sum = 0;
+      index = state->cursor == 0 ? 23 : state->cursor - 1;
       for (i = 0; i < 24; i++)
         {
-          index = (state->cursor + 23 - i) % 24;
           sum += (int32_t)state->history[index] *
                  g_asr_resample_fir[fraction][i];
+          index = index == 0 ? 23 : index - 1;
         }
 
       value = sum / 32768;

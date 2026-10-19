@@ -1,11 +1,15 @@
 /****************************************************************************
- * asr_stream.h
+ * apps/testing/titan_asr/asr_stream.h
  *
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/
 
 #ifndef ASR_STREAM_H
 #define ASR_STREAM_H
+
+/****************************************************************************
+ * Included Files
+ ****************************************************************************/
 
 #include <nuttx/config.h>
 
@@ -18,13 +22,21 @@
 
 #include "asr_runtime.h"
 
+#ifdef CONFIG_TESTING_TITAN_ASR_PREROLL_ROWS
+#define ASR_STREAM_PREROLL_ROWS CONFIG_TESTING_TITAN_ASR_PREROLL_ROWS
+#else
 #define ASR_STREAM_PREROLL_ROWS 15
+#endif
 #ifdef CONFIG_TESTING_TITAN_ASR_END_BLOCKS
 #define ASR_STREAM_END_BLOCKS   CONFIG_TESTING_TITAN_ASR_END_BLOCKS
 #else
 #define ASR_STREAM_END_BLOCKS   25
 #endif
-#define ASR_STREAM_MARKER_END   80
+#ifdef CONFIG_TESTING_TITAN_ASR_MARKER_END
+#define ASR_STREAM_MARKER_END CONFIG_TESTING_TITAN_ASR_MARKER_END
+#else
+#define ASR_STREAM_MARKER_END 80
+#endif
 #define ASR_STREAM_RING_ROWS    (199 + 15 + 25 / 2 + 1)
 #define ASR_STREAM_OUTPUT_BYTES (ASR_CTC_FRAMES * ASR_CTC_CLASSES)
 
@@ -81,6 +93,10 @@ struct asr_stream_s
   unsigned int marker_quiet;
 #ifdef CONFIG_TESTING_TITAN_ASR_VAD_START_BLOCKS
   unsigned int marker_speech;
+#endif
+#if CONFIG_TESTING_TITAN_ASR_VAD_ONSET_HOLD > 0
+  unsigned int onset_quiet;
+  bool onset_pending;
 #endif
   unsigned int wake_blocks;
   bool sequence_valid;
