@@ -9,6 +9,23 @@ config TESTING_TITAN_ASR
 
 if TESTING_TITAN_ASR
 
+config TESTING_TITAN_ASR_GATE_TRACE
+	bool "Trace wake model scores and turn authorization"
+	default n
+	depends on TESTING_TITAN_ASR_DUPLEX
+	help
+		Print each KWS result and turn boundary state during diagnostic
+		replay. Keep disabled for live latency measurements.
+
+config TESTING_TITAN_ASR_WINDOW_TEXT_FALLBACK
+	bool "Allow complete ASR text to confirm window wake"
+	default n
+	depends on TESTING_TITAN_ASR_WINDOW_TEXT_CONFIRM
+	help
+		Allow an exact completed repeated wake phrase above the ASR
+		confidence threshold to open the next command window when KWS
+		does not detect it. Truncated or extended phrases are rejected.
+
 config AUDIOUTILS_TITAN_ASR_STREAM
 	bool
 

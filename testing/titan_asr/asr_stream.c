@@ -317,6 +317,12 @@ int asr_stream_block(struct asr_stream_s *state,
       state->turn_row = state->turn_row > duration ?
                         state->turn_row - duration : 0;
 #endif
+#ifdef CONFIG_TESTING_TITAN_ASR_GATE_TRACE
+      printf("ASR_GATE_BEGIN sequence=%" PRIu32 " turn=%" PRIu64
+             " start=%" PRIu64 " authorized=%u\n",
+             state->sequence, state->gate.current,
+             block->start_sample, state->gate.authorized);
+#endif
       state->quiet = 0;
       state->evaluated = false;
       state->last_speech_sample = block->start_sample;
@@ -441,17 +447,40 @@ int asr_stream_block(struct asr_stream_s *state,
         }
 
       titan_intent_wake(&state->gate, &score);
+#ifdef CONFIG_TESTING_TITAN_ASR_GATE_TRACE
+      printf("ASR_GATE_KWS sequence=%" PRIu32 " turn=%" PRIu64
+             " first=%" PRIu64 " count=%u label=%u score=%u margin=%u"
+             " logits=%d,%d,%d,%d in_turn=%u emitted=%u"
+             " inline=%u window=%u history=%u,%u\n",
+             state->sequence, state->gate.current, first, count,
+             score.label, score.score, score.margin,
+             state->logits[0], state->logits[1],
+             state->logits[2], state->logits[3],
+             state->gate.in_turn, state->gate.emitted,
+             state->gate.inline_seen, state->gate.window_seen,
+             state->gate.wake_history, state->gate.window_history);
+#endif
     }
 
 #ifdef CONFIG_TESTING_TITAN_ASR_WINDOW_TEXT_CONFIRM
   if (block->marker_end && state->evaluated &&
       state->gate.in_turn && state->gate.current == block->utterance_id &&
+#ifndef CONFIG_TESTING_TITAN_ASR_WINDOW_TEXT_FALLBACK
       state->gate.inline_seen &&
+#else
+      !state->gate.invalid && !state->gate.emitted &&
+#endif
       state->transcript.confidence >= state->config.threshold &&
       strcmp(state->transcript.text,
              "\xe8\xb1\x86\xe5\x8c\x85\xe8\xb1\x86\xe5\x8c\x85") == 0)
     {
       state->gate.window_seen = true;
+#ifdef CONFIG_TESTING_TITAN_ASR_WINDOW_TEXT_FALLBACK
+      state->gate.wake.label = TITAN_WAKE_WINDOW;
+      state->gate.wake.score =
+        (uint16_t)lround(state->transcript.confidence * 32768);
+      state->gate.wake.margin = 0;
+#endif
     }
 #endif
 
@@ -479,6 +508,21 @@ int asr_stream_block(struct asr_stream_s *state,
 
       state->gate.inline_seen = false;
       state->gate.window_seen = false;
+    }
+#endif
+
+#ifdef CONFIG_TESTING_TITAN_ASR_GATE_TRACE
+  if (block->marker_end)
+    {
+      printf("ASR_GATE_END sequence=%" PRIu32 " turn=%" PRIu64
+             " marker=%" PRIu64 " evaluated=%u in_turn=%u emitted=%u"
+             " inline=%u window=%u authorized=%u invalid=%u"
+             " confidence=%.6f text=%s\n",
+             state->sequence, state->gate.current, block->utterance_id,
+             state->evaluated, state->gate.in_turn, state->gate.emitted,
+             state->gate.inline_seen, state->gate.window_seen,
+             state->gate.authorized, state->gate.invalid,
+             state->transcript.confidence, state->transcript.text);
     }
 #endif
 
