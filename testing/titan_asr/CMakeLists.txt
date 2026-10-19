@@ -37,6 +37,9 @@ if(CONFIG_TESTING_TITAN_ASR)
     -DTF_LITE_STRIP_ERROR_STRINGS
     -Wno-shadow
     -Wno-undef)
+  if(CONFIG_TESTING_TITAN_DEMO)
+    target_sources(apps_titan_asr PRIVATE titan_demo.c titan_media.c)
+  endif()
   if(CONFIG_TESTING_TITAN_ASR_DUPLEX)
     target_sources(
       apps_titan_asr PRIVATE asr_frontend.c speex/mdf.c speex/fftwrap.c

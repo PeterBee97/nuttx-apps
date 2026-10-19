@@ -9,6 +9,62 @@ config TESTING_TITAN_ASR
 
 if TESTING_TITAN_ASR
 
+config TESTING_TITAN_DEMO
+	bool "Local wake-controlled camera and audio demo"
+	default n
+	depends on TESTING_TITAN_ASR_DUPLEX && VIDEO_STREAM && USERLED
+	help
+		Enable titan_asr demo [DIRECTORY] [SECONDS] [MODE], demo-stop and
+		demo-status. Require a complete repeated Doubao wake before
+		each command. Capture BMP photos, YUY2 AVI video and mono WAV
+		from the existing microphone frontend. Use a mounted writable
+		directory; the demo does not format storage.
+
+if TESTING_TITAN_DEMO
+
+config TESTING_TITAN_DEMO_DIRECTORY
+	string "Default media directory"
+	default "/sdcard"
+
+config TESTING_TITAN_DEMO_FPS
+	int "Uncompressed video frames per second"
+	default 5
+	range 1 15
+
+config TESTING_TITAN_DEMO_FRONTEND_MODE
+	int "Microphone frontend mode"
+	default 2
+	range 0 2
+	help
+		0 records raw microphone mean, 1 uses dual-channel AEC and
+		2 uses AEC and beam. Raw mode is useful for acoustic checks
+		when the board speaker plays the command test phrases.
+
+config TESTING_TITAN_DEMO_AUDIO_BLOCKS
+	int "Recording queue blocks"
+	default 256
+	range 64 1024
+	help
+		Each block holds 10 ms of mono PCM and uses 320 bytes.
+		Queue exhaustion stops recording and indicates an error.
+
+config TESTING_TITAN_DEMO_LIMIT_KB
+	int "Maximum bytes per recording in KiB"
+	default 32768
+	range 256 262144
+	help
+		Automatically finalize a recording at this limit.
+		Storage errors stop the affected recording sooner.
+
+config TESTING_TITAN_DEMO_PRIORITY
+	int "Media and LED worker priority"
+	default 90
+	range 1 255
+	help
+		Keep below microphone capture and decoder priorities.
+
+endif
+
 config TESTING_TITAN_ASR_GATE_TRACE
 	bool "Trace wake model scores and turn authorization"
 	default n

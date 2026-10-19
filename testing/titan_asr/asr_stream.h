@@ -57,6 +57,9 @@ struct asr_stream_config_s
   float asr_scale;
   int asr_zero;
   uint32_t wake_scale_q20;
+#ifdef CONFIG_TESTING_TITAN_DEMO
+  bool strict_wake;
+#endif
   asr_stream_model_t model;
   asr_stream_event_t event;
   void *argument;

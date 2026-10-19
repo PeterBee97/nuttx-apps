@@ -28,6 +28,9 @@
 #ifdef CONFIG_TESTING_TITAN_ASR_DUPLEX
 #  include "asr_frontend.h"
 #endif
+#ifdef CONFIG_TESTING_TITAN_DEMO
+#  include "titan_demo.h"
+#endif
 #ifdef CONFIG_TESTING_TITAN_ASR_MVE
 #  include "asr_mve.h"
 #endif
@@ -72,6 +75,10 @@ static unsigned queue_peak;
 static bool queue_done;
 static int worker_error;
 static bool capture_only;
+#ifdef CONFIG_TESTING_TITAN_DEMO
+static bool demo;
+static pthread_mutex_t model_lock = PTHREAD_MUTEX_INITIALIZER;
+#endif
 #ifdef CONFIG_TESTING_TITAN_ASR_SNAPSHOT_TRACE
 static bool snapshot_trace;
 #endif
@@ -115,6 +122,13 @@ static void *worker(void *argument)
           uint32_t start = perf_gettime();
 
           worker_error = asr_stream_feed(&state, mono, 160);
+#ifdef CONFIG_TESTING_TITAN_DEMO
+          if (demo && worker_error < 0)
+            {
+              titan_demo_stop();
+            }
+
+#endif
           elapsed += (uint32_t)perf_gettime() - start;
           consumed++;
         }
@@ -191,6 +205,13 @@ static void event(const struct titan_intent_event_s *e,
   printf("ASR_EVENT kind=%u intent=%u result=%u text=%s confidence=%.4f\n",
          e->kind, e->intent, e->result,
          r ? r->text : "", r ? r->confidence : 0.0);
+#ifdef CONFIG_TESTING_TITAN_DEMO
+  if (demo)
+    {
+      titan_demo_event(e);
+    }
+
+#endif
 }
 
 static int decode(const int8_t *features, unsigned index)
@@ -402,11 +423,37 @@ static void check_kernels(unsigned int index)
 
 int main(int argc, char **argv)
 {
+#ifdef CONFIG_TESTING_TITAN_DEMO
+  if (argc > 1 && strcmp(argv[1], "demo-stop") == 0)
+    {
+      titan_demo_stop();
+      return 0;
+    }
+
+  if (argc > 1 && strcmp(argv[1], "demo-status") == 0)
+    {
+      titan_demo_status();
+      return 0;
+    }
+
+  if (pthread_mutex_trylock(&model_lock) != 0)
+    {
+      printf("ASR_BUSY\n");
+      return 1;
+    }
+
+  demo = argc > 1 && (strcmp(argv[1], "demo") == 0 ||
+                     strcmp(argv[1], "demo-replay") == 0);
+  bool demo_opened = false;
+#endif
   int ret = board_model_init();
 
   if (ret < 0)
     {
       printf("ASR_INIT_ERROR %d\n", ret);
+#ifdef CONFIG_TESTING_TITAN_DEMO
+      pthread_mutex_unlock(&model_lock);
+#endif
       return 1;
     }
 
@@ -422,6 +469,9 @@ int main(int argc, char **argv)
       .wake_scale_q20 = WAKE_SCALE_Q20, .model = model, .event = event
     };
 
+#ifdef CONFIG_TESTING_TITAN_DEMO
+  config.strict_wake = demo;
+#endif
   ret = asr_stream_init(&state, &config, board_lm,
                         board_lm_end - board_lm, 1, false);
   printf("ASR_READY ret=%d wake_arena=%zu asr_arena=%zu context=%zu\n",
@@ -479,7 +529,12 @@ int main(int argc, char **argv)
 
 #endif
 #ifdef CONFIG_TESTING_TITAN_ASR_DUPLEX
-  if (ret == 0 && argc > 4 && strcmp(argv[1], "replay") == 0)
+  if (ret == 0 && argc > 4 &&
+      (strcmp(argv[1], "replay") == 0
+#ifdef CONFIG_TESTING_TITAN_DEMO
+       || strcmp(argv[1], "demo-replay") == 0
+#endif
+      ))
     {
 #ifdef CONFIG_TESTING_TITAN_ASR_SNAPSHOT_TRACE
       snapshot_trace = true;
@@ -488,10 +543,20 @@ int main(int argc, char **argv)
       int16_t mono[160];
       unsigned int blocks = strtoul(argv[3], NULL, 10);
       int fd = open(argv[2], O_RDONLY);
+      bool replay_dump = argc > 5 && atoi(argv[5]) != 0;
 
-      ret = fd < 0 ? -errno :
-            asr_frontend_open(strtoul(argv[4], NULL, 10),
-                              argc > 5 && atoi(argv[5]) != 0);
+#ifdef CONFIG_TESTING_TITAN_DEMO
+      if (demo)
+        {
+          replay_dump = false;
+          ret = titan_demo_open(argc > 5 ? argv[5] :
+                                CONFIG_TESTING_TITAN_DEMO_DIRECTORY);
+          demo_opened = ret == 0;
+        }
+
+#endif
+      ret = ret < 0 ? ret : fd < 0 ? -errno :
+            asr_frontend_open(strtoul(argv[4], NULL, 10), replay_dump);
 #ifdef CONFIG_TESTING_TITAN_ASR_SNAPSHOT_TRACE
       if (ret == 0 && argc > 7)
         {
@@ -503,7 +568,13 @@ int main(int argc, char **argv)
       g_asr_opt_mask = 14;
       asr_mve_enable(false);
 #endif
-      asr_stream_authorize_window(&state);
+#ifdef CONFIG_TESTING_TITAN_DEMO
+      if (!demo)
+#endif
+        {
+          asr_stream_authorize_window(&state);
+        }
+
       for (unsigned int block = 0; block < blocks && ret == 0; block++)
         {
           size_t filled = 0;
@@ -527,6 +598,14 @@ int main(int argc, char **argv)
               ret = asr_frontend_replay(input, mono);
               if (ret > 0)
                 {
+#ifdef CONFIG_TESTING_TITAN_DEMO
+                  if (demo)
+                    {
+                      titan_demo_pcm(mono);
+                      usleep(10000);
+                    }
+
+#endif
                   ret = asr_stream_feed(&state, mono, 160);
                 }
             }
@@ -546,11 +625,32 @@ int main(int argc, char **argv)
     }
 
 #endif
-  if (ret == 0 && argc > 1 && strcmp(argv[1], "mic") == 0)
+  if (ret == 0 && argc > 1 &&
+      (strcmp(argv[1], "mic") == 0
+#ifdef CONFIG_TESTING_TITAN_DEMO
+       || demo
+#endif
+      ))
     {
       unsigned seconds = argc > 2 ? strtoul(argv[2], NULL, 10) : 20;
 
-      if (seconds < 1 || seconds > 60)
+#ifdef CONFIG_TESTING_TITAN_DEMO
+      if (demo)
+        {
+          const char *directory = argc > 2 ? argv[2] :
+                                  CONFIG_TESTING_TITAN_DEMO_DIRECTORY;
+
+          seconds = argc > 3 ? strtoul(argv[3], NULL, 10) : 0;
+          ret = seconds > 86400 ? -EINVAL : titan_demo_open(directory);
+          demo_opened = ret == 0;
+        }
+
+#endif
+      if (
+#ifdef CONFIG_TESTING_TITAN_DEMO
+          !demo &&
+#endif
+          (seconds < 1 || seconds > 60))
         {
           ret = -EINVAL;
         }
@@ -564,10 +664,39 @@ int main(int argc, char **argv)
 #ifdef CONFIG_TESTING_TITAN_ASR_DUPLEX
       bool duplex = argc > 3;
 
+#ifdef CONFIG_TESTING_TITAN_DEMO
+      if (demo)
+        {
+          duplex = true;
+        }
+
+#endif
       if (duplex && ret == 0)
         {
+#ifdef CONFIG_TESTING_TITAN_DEMO
+          unsigned int mode = argc > 3 ? strtoul(argv[3], NULL, 10) : 2;
+          bool dump = argc > 4 && atoi(argv[4]) != 0;
+
+          if (demo)
+            {
+              mode = argc > 4 ? strtoul(argv[4], NULL, 10) :
+                     CONFIG_TESTING_TITAN_DEMO_FRONTEND_MODE;
+              dump = false;
+            }
+
+          if (demo && mode > 2)
+            {
+              ret = -EINVAL;
+            }
+          else
+            {
+              ret = asr_frontend_open(mode, dump);
+            }
+
+#else
           ret = asr_frontend_open(strtoul(argv[3], NULL, 10),
                                  argc > 4 && atoi(argv[4]) != 0);
+#endif
           device = "/dev/pdmref";
           channels = 3;
         }
@@ -593,7 +722,13 @@ int main(int argc, char **argv)
       size_t filled = 0;
       uint64_t samples = 0;
 
-      asr_stream_authorize_window(&state);
+#ifdef CONFIG_TESTING_TITAN_DEMO
+      if (!demo)
+#endif
+        {
+          asr_stream_authorize_window(&state);
+        }
+
       queue_read = queue_write = queue_count = queue_peak = 0;
       queue = calloc(CONFIG_TESTING_TITAN_ASR_QUEUE_BLOCKS, sizeof(*queue));
       if (queue == NULL && ret == 0)
@@ -604,6 +739,13 @@ int main(int argc, char **argv)
       queue_done = false;
       worker_error = 0;
       capture_only = argc > 5 && atoi(argv[5]) != 0;
+#ifdef CONFIG_TESTING_TITAN_DEMO
+      if (demo)
+        {
+          capture_only = false;
+        }
+
+#endif
 #ifdef CONFIG_TESTING_TITAN_ASR_DUPLEX
       struct sched_param capture_priority;
 
@@ -641,8 +783,20 @@ int main(int argc, char **argv)
           ret = -created;
         }
 
+#ifdef CONFIG_TESTING_TITAN_DEMO
+      while (ret == 0 &&
+             (seconds == 0 || samples < (uint64_t)seconds * 16000))
+#else
       while (ret == 0 && samples < seconds * 16000)
+#endif
         {
+#ifdef CONFIG_TESTING_TITAN_DEMO
+          if (demo && titan_demo_stopping())
+            {
+              break;
+            }
+
+#endif
           struct pollfd pfd =
             {
               .fd = fd, .events = POLLIN
@@ -688,6 +842,13 @@ int main(int argc, char **argv)
                   continue;
                 }
 
+#ifdef CONFIG_TESTING_TITAN_DEMO
+              if (demo)
+                {
+                  titan_demo_pcm(converted);
+                }
+
+#endif
               pthread_mutex_lock(&queue_lock);
               if (queue_count == CONFIG_TESTING_TITAN_ASR_QUEUE_BLOCKS)
                 {
@@ -980,6 +1141,17 @@ int main(int argc, char **argv)
 done:
 #endif
   printf("ASR_DONE ret=%d\n", ret);
+#ifdef CONFIG_TESTING_TITAN_DEMO
+  if (demo_opened)
+    {
+      titan_demo_close();
+    }
+
+#endif
   board_model_close();
+#ifdef CONFIG_TESTING_TITAN_DEMO
+  demo = false;
+  pthread_mutex_unlock(&model_lock);
+#endif
   return ret < 0 ? 1 : 0;
 }
