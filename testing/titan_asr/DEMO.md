@@ -1,21 +1,54 @@
 # Titan Mini local voice camera demo
 
-Build NuttX `titan-mini:asrdemo` with the matching apps branch. The demo uses
-the onboard Ethos-U55 models and has no network dependency. Its optional
+Build NuttX `titan-mini:asrdemo` with the matching apps branch. Recognition uses
+the onboard Ethos-U55 models. Its optional
 implementation is controlled by `CONFIG_TESTING_TITAN_DEMO`, default `n`.
-The profile starts NSH; run the demo explicitly after mounting storage.
+The profile starts NSH, automatically registers the GPT partitions, mounts
+the first FAT32 partition at `/sdcard` and starts the continuous voice demo.
+Media is saved in `/sdcard/media`.
 
-Mount writable storage and start:
+Ethernet obtains an IPv4 address through DHCP. The console prints
+`DEMO_FILES url=http://ADDRESS/ root=/sdcard`; browse that address or
+`http://ADDRESS/media/` to list and download files. The file service uses
+plain HTTP and has no authentication. Stop an active recording before
+downloading it so its header and size are final.
+The profile sends 4 KiB chunks with 20 ms pauses to protect realtime capture
+and inference; measured download speed is about 106 KiB/s. Unpaced downloads
+triggered U55 timeouts during concurrent capture.
+
+For the card initialized during the 2026-10-19 session, the driver reports 112,640,000
+512-byte sectors (57.67 GB). The GPT FAT32 partition spans sectors 2048
+through 112,639,966. This measured capacity differs from the card's 64 GB
+label. Its FAT volume has 3,518,216 16 KiB blocks.
+
+The following commands initialize a replacement card and **erase its data**:
 
 ```text
-mkdir /sdcard
-mount -t vfat /dev/mmcsd0 /sdcard
-titan_asr demo /sdcard &
-titan_asr demo-status
 titan_asr demo-stop
+umount /sdcard
+mkgpt write /dev/mmcsd0 :1031168 sdmedia:0
+titan_asr demo-mount
+mkfatfs -F 32 /dev/mmcsd0p1
+titan_asr demo-boot &
 ```
 
-The mount requires an existing formatted card; the demo never formats it.
+The first `demo-mount` registers the GPT partition device but reports a FAT
+mount error until `mkfatfs` completes. If `/dev/mmcsd0p1` already exists,
+reboot immediately after `mkgpt` and run `mkfatfs` and `demo-boot` after boot.
+Initialization tools are enabled only in this profile.
+Normal boot and `demo-mount` never format storage.
+
+For normal operation and manual restart:
+
+```text
+titan_asr demo-status
+titan_asr demo-stop
+titan_asr demo /sdcard/media &
+```
+
+`CONFIG_TESTING_TITAN_DEMO_STORAGE` and
+`CONFIG_TITAN_MINI_VOICE_DEMO_AUTOSTART` independently control storage/service
+integration and boot startup; both default to `n`.
 If no card is present, temporary SDRAM storage can be used:
 
 ```text
@@ -53,6 +86,11 @@ Without it, capture and decoder preemption during camera register reads caused
 chip-ID timeouts while live microphones were running. The option keeps
 interrupts enabled and protects only the active transfer.
 
+The realtime AEC frontend is allocated before the media queue. With Ethernet
+enabled, the reverse order pushed its 64 KiB arena into external SDRAM and
+made each 10 ms audio block take about 20 ms, starving the decoder. Allocating
+the frontend first keeps the arena in internal SRAM in this profile.
+
 The RGB LED uses the following priority, highest first:
 
 | State | Indication |
@@ -65,6 +103,9 @@ The RGB LED uses the following priority, highest first:
 | Video recording | Red |
 | Audio recording | Red flashes every 500 ms |
 | Idle | Blue for 200 ms every two seconds |
+
+Before capture starts, storage initialization shows amber. Mount failure
+leaves solid red and keeps the voice demo stopped.
 
 Stop waits for workers, closes the camera and finalizes media headers. Avoid
 `kill -9` or resetting while recording because those bypass normal file
@@ -90,3 +131,10 @@ With concurrent PDM capture, the final ring queue completed a 62-frame AVI
 through normal voice stop without camera timeout.
 Acoustic wake confidence is still variable; digital success does not establish
 human speech accuracy or default AEC-beam double-talk acceptance.
+
+GPT/FAT validation during the 2026-10-19 session confirmed all five actions
+with digital PCM and concurrent live PDM capture. The card retained a
+320 x 240 BMP, a 124-frame YUY2 AVI and a 12.87-second WAV after reboot.
+HTTP downloads matched their complete sizes and repeated SHA-256 hashes.
+A 200.6-second live AEC-beam capture continued through paced downloads
+without overruns, inference failures or a queue peak above one.

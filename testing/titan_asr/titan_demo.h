@@ -29,4 +29,8 @@ void titan_demo_vad(bool speech, bool authorized);
 void titan_demo_pcm(const int16_t *pcm);
 void titan_demo_sync(struct titan_intent_state_s *state);
 
+#ifdef CONFIG_TESTING_TITAN_DEMO_STORAGE
+int titan_storage_start(void);
+#endif
+
 #endif /* TITAN_DEMO_H */

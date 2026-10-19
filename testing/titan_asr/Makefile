@@ -9,6 +9,9 @@ CSRCS = asr_ctc.c asr_runtime.c asr_stream.c board_math.c
 ifeq ($(CONFIG_TESTING_TITAN_DEMO),y)
 CSRCS += titan_demo.c titan_media.c
 endif
+ifeq ($(CONFIG_TESTING_TITAN_DEMO_STORAGE),y)
+CSRCS += titan_storage.c
+endif
 ifeq ($(CONFIG_TESTING_TITAN_ASR_DUPLEX),y)
 CSRCS += asr_frontend.c speex/mdf.c speex/fftwrap.c
 CSRCS += speex/kiss_fft.c speex/kiss_fftr.c

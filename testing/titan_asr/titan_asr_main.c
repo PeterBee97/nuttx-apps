@@ -442,6 +442,22 @@ int main(int argc, char **argv)
       return 1;
     }
 
+#ifdef CONFIG_TESTING_TITAN_DEMO_STORAGE
+  if (argc > 1 && (strcmp(argv[1], "demo-boot") == 0 ||
+                   strcmp(argv[1], "demo-mount") == 0))
+    {
+      int storage = titan_storage_start();
+
+      if (storage < 0 || strcmp(argv[1], "demo-mount") == 0)
+        {
+          pthread_mutex_unlock(&model_lock);
+          return storage < 0 ? 1 : 0;
+        }
+
+      argv[1] = "demo";
+    }
+#endif
+
   demo = argc > 1 && (strcmp(argv[1], "demo") == 0 ||
                      strcmp(argv[1], "demo-replay") == 0);
   bool demo_opened = false;
@@ -549,14 +565,20 @@ int main(int argc, char **argv)
       if (demo)
         {
           replay_dump = false;
+        }
+
+#endif
+      ret = ret < 0 ? ret : fd < 0 ? -errno :
+            asr_frontend_open(strtoul(argv[4], NULL, 10), replay_dump);
+#ifdef CONFIG_TESTING_TITAN_DEMO
+      if (ret == 0 && demo)
+        {
           ret = titan_demo_open(argc > 5 ? argv[5] :
                                 CONFIG_TESTING_TITAN_DEMO_DIRECTORY);
           demo_opened = ret == 0;
         }
 
 #endif
-      ret = ret < 0 ? ret : fd < 0 ? -errno :
-            asr_frontend_open(strtoul(argv[4], NULL, 10), replay_dump);
 #ifdef CONFIG_TESTING_TITAN_ASR_SNAPSHOT_TRACE
       if (ret == 0 && argc > 7)
         {
@@ -637,12 +659,8 @@ int main(int argc, char **argv)
 #ifdef CONFIG_TESTING_TITAN_DEMO
       if (demo)
         {
-          const char *directory = argc > 2 ? argv[2] :
-                                  CONFIG_TESTING_TITAN_DEMO_DIRECTORY;
-
           seconds = argc > 3 ? strtoul(argv[3], NULL, 10) : 0;
-          ret = seconds > 86400 ? -EINVAL : titan_demo_open(directory);
-          demo_opened = ret == 0;
+          ret = seconds > 86400 ? -EINVAL : 0;
         }
 
 #endif
@@ -701,6 +719,19 @@ int main(int argc, char **argv)
           channels = 3;
         }
 
+#ifdef CONFIG_TESTING_TITAN_DEMO
+      if (ret == 0 && demo)
+        {
+          /* Allocate the realtime frontend before the larger media queue,
+           * so AEC can use the internal SRAM region.
+           */
+
+          ret = titan_demo_open(argc > 2 ? argv[2] :
+                                CONFIG_TESTING_TITAN_DEMO_DIRECTORY);
+          demo_opened = ret == 0;
+        }
+
+#endif
       int16_t pcm[480];
 #else
       int16_t pcm[320];

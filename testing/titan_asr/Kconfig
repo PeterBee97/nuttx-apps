@@ -26,6 +26,35 @@ config TESTING_TITAN_DEMO_DIRECTORY
 	string "Default media directory"
 	default "/sdcard"
 
+config TESTING_TITAN_DEMO_STORAGE
+	bool "Mount SD storage and start the HTTP file server"
+	default n
+	depends on FS_FAT && NET_IPv4 && NETUTILS_WEBSERVER
+	depends on NETUTILS_HTTPD_SENDFILE && NETUTILS_HTTPD_DIRLIST
+	depends on NETUTILS_HTTPD_SINGLECONNECT && NETUTILS_NETLIB
+	depends on GPT_PARTITION
+	help
+		Enable demo-boot. Mount an existing FAT card, create the default
+		media directory, start an HTTP directory and download service,
+		then run the continuous voice demo. Mount failure leaves the LED
+		red and does not start capture. Storage is never formatted.
+		Set the HTTP server document root to the SD mount directory.
+
+config TESTING_TITAN_DEMO_DEVICE
+	string "SD block device"
+	default "/dev/mmcsd0p1"
+	depends on TESTING_TITAN_DEMO_STORAGE
+
+config TESTING_TITAN_DEMO_DISK
+	string "SD disk containing the GPT"
+	default "/dev/mmcsd0"
+	depends on TESTING_TITAN_DEMO_STORAGE
+
+config TESTING_TITAN_DEMO_MOUNTPOINT
+	string "SD mount directory"
+	default "/sdcard"
+	depends on TESTING_TITAN_DEMO_STORAGE
+
 config TESTING_TITAN_DEMO_FPS
 	int "Uncompressed video frames per second"
 	default 5
