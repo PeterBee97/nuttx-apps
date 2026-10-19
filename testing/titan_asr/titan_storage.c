@@ -90,8 +90,11 @@ static int storage_server(int argc, char **argv)
   struct in_addr address;
   char text[INET_ADDRSTRLEN];
   unsigned int i;
+#ifdef CONFIG_NETINIT_DHCPC
+  int ret;
+#endif
 
-  for (i = 0; i < 30; i++)
+  for (i = 0; ; i++)
     {
       if (netlib_get_ipv4addr("eth0", &address) == 0 &&
           address.s_addr != INADDR_ANY)
@@ -102,6 +105,18 @@ static int storage_server(int argc, char **argv)
           break;
         }
 
+#ifdef CONFIG_NETINIT_DHCPC
+      /* Let NSH's initial DHCP attempt finish before retrying. */
+
+      if (i >= 30)
+        {
+          ret = netlib_obtain_ipv4addr("eth0");
+          printf("DEMO_DHCP ret=%d\n", ret);
+          sleep(3);
+          continue;
+        }
+
+#endif
       sleep(1);
     }
 
