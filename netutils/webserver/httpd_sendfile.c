@@ -35,6 +35,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <errno.h>
+#include <string.h>
 #include <nuttx/debug.h>
 
 #include "netutils/httpd.h"
@@ -48,8 +49,28 @@
 int httpd_sendfile_open(const char *name, struct httpd_fs_file *file)
 {
   struct stat st;
+  const char *part = name;
 
-  if (sizeof(file->path) < snprintf(file->path, sizeof(file->path), "%s%s",
+  /* Keep requests inside the configured document root. */
+
+  if (name[0] != '/')
+    {
+      errno = EINVAL;
+      return ERROR;
+    }
+
+  while ((part = strstr(part, "/..")) != NULL)
+    {
+      if (part[3] == '/' || part[3] == '\0')
+        {
+          errno = EINVAL;
+          return ERROR;
+        }
+
+      part += 3;
+    }
+
+  if (sizeof(file->path) <= snprintf(file->path, sizeof(file->path), "%s%s",
       CONFIG_NETUTILS_HTTPD_PATH, name))
     {
       errno = ENAMETOOLONG;
@@ -127,6 +148,9 @@ int httpd_sendfile_close(struct httpd_fs_file *file)
 
 int httpd_sendfile_send(int outfd, struct httpd_fs_file *file)
 {
+  size_t remaining = file->len;
+  ssize_t sent;
+
 #ifdef CONFIG_NETUTILS_HTTPD_DIRLIST
   if (-1 == file->fd)
     {
@@ -141,9 +165,41 @@ int httpd_sendfile_send(int outfd, struct httpd_fs_file *file)
     }
 #endif
 
-  if (-1 == sendfile(outfd, file->fd, 0, file->len))
+  while (remaining > 0)
     {
-      return ERROR;
+      size_t count = remaining;
+
+#if CONFIG_NETUTILS_HTTPD_SEND_DELAY_US > 0
+      if (count > CONFIG_NETUTILS_HTTPD_SEND_CHUNK)
+        {
+          count = CONFIG_NETUTILS_HTTPD_SEND_CHUNK;
+        }
+#endif
+
+      sent = sendfile(outfd, file->fd, NULL, count);
+      if (sent < 0)
+        {
+          if (errno == EINTR)
+            {
+              continue;
+            }
+
+          return ERROR;
+        }
+
+      if (sent == 0)
+        {
+          errno = EIO;
+          return ERROR;
+        }
+
+      remaining -= sent;
+#if CONFIG_NETUTILS_HTTPD_SEND_DELAY_US > 0
+      if (remaining > 0)
+        {
+          usleep(CONFIG_NETUTILS_HTTPD_SEND_DELAY_US);
+        }
+#endif
     }
 
   return OK;

@@ -138,6 +138,21 @@ config NETUTILS_HTTPD_PATH
 	depends on NETUTILS_HTTPD_MMAP || NETUTILS_HTTPD_SENDFILE
 	default "/mnt"
 
+config NETUTILS_HTTPD_SEND_CHUNK
+	int "Maximum sendfile chunk size"
+	depends on NETUTILS_HTTPD_SENDFILE
+	default 4096
+	range 512 65536
+
+config NETUTILS_HTTPD_SEND_DELAY_US
+	int "Delay between file chunks in microseconds"
+	depends on NETUTILS_HTTPD_SENDFILE
+	default 0
+	range 0 1000000
+	help
+		Pace file downloads to leave bandwidth and CPU time for realtime
+		work. Zero disables pacing.
+
 config NETUTILS_HTTPD_KEEPALIVE_DISABLE
 	bool "Keepalive Disable"
 	default y
