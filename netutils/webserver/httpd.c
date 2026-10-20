@@ -471,7 +471,16 @@ static int httpd_sendfile(struct httpd_state *pstate)
 #endif
 
 #ifdef CONFIG_NETUTILS_HTTPD_DIRLIST
-  if (httpd_send_headers(pstate, 200, -1) != OK)
+  if (pstate->ht_file.fd < 0)
+    {
+      if (httpd_send_headers(pstate, 200, -1) != OK)
+        {
+          goto done;
+        }
+    }
+  else if (httpd_send_headers(pstate,
+                              pstate->ht_file.len == 0 ? 204 : 200,
+                              pstate->ht_file.len) != OK)
     {
       goto done;
     }
@@ -969,9 +978,21 @@ int httpd_send_headers(struct httpd_state *pstate, int status, int len)
       "jpg",   "image/jpeg"
     },
 
-    {
-      "mp3",   "audio/mpeg"
-    },
+      {
+        "mp3",   "audio/mpeg"
+      },
+
+      {
+        "bmp",   "image/bmp"
+      },
+
+      {
+        "wav",   "audio/wav"
+      },
+
+      {
+        "avi",   "video/x-msvideo"
+      },
     };
 
   ptr = strrchr(pstate->ht_filename, ISO_PERIOD);
@@ -985,7 +1006,7 @@ int httpd_send_headers(struct httpd_state *pstate, int status, int len)
 
       for (i = 0; i < nitems(a); i++)
         {
-          if (strncmp(a[i].ext, ptr + 1, strlen(a[i].ext)) == 0)
+          if (strcasecmp(a[i].ext, ptr + 1) == 0)
             {
               mime = a[i].mime;
               break;
