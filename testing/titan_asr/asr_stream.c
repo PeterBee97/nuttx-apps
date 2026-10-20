@@ -420,14 +420,6 @@ int asr_stream_block(struct asr_stream_s *state,
                   goto failed;
                 }
 
-#ifdef CONFIG_TESTING_TITAN_DEMO
-              if (state->config.strict_wake)
-                {
-                  state->gate.inline_seen = false;
-                  state->gate.window_seen = false;
-                }
-
-#endif
 #ifdef CONFIG_TESTING_TITAN_ASR_INLINE_TEXT_CONFIRM
               if (state->gate.inline_seen &&
                   strstr(state->transcript.text,
@@ -442,7 +434,17 @@ int asr_stream_block(struct asr_stream_s *state,
                 }
 #endif
 
-              if (titan_intent_candidate(&state->gate, block->utterance_id,
+              /* A strict demo command needs a wake from the prior turn.
+               * Same-turn KWS is only a candidate for opening that window.
+               */
+
+              if (
+#ifdef CONFIG_TESTING_TITAN_DEMO
+                  (!state->config.strict_wake ||
+                   state->gate.authorized) &&
+#endif
+                  titan_intent_candidate(&state->gate,
+                                         block->utterance_id,
                                          block->generation, now, &score,
                                          false, &event))
                 {
@@ -469,12 +471,7 @@ int asr_stream_block(struct asr_stream_s *state,
           goto failed;
         }
 
-#ifdef CONFIG_TESTING_TITAN_DEMO
-      if (!state->config.strict_wake)
-#endif
-        {
-          titan_intent_wake(&state->gate, &score);
-        }
+      titan_intent_wake(&state->gate, &score);
 
 #ifdef CONFIG_TESTING_TITAN_ASR_GATE_TRACE
       printf("ASR_GATE_KWS sequence=%" PRIu32 " turn=%" PRIu64
@@ -543,17 +540,21 @@ int asr_stream_block(struct asr_stream_s *state,
 #ifdef CONFIG_TESTING_TITAN_DEMO
   if (state->config.strict_wake && block->marker_end)
     {
+      bool kws_seen = state->gate.inline_seen ||
+                      state->gate.window_seen;
+
+      /* KWS alone also fires on bare commands. Require an independently
+       * decoded "bao" while tolerating substitutions of the first syllable.
+       */
+
       state->gate.inline_seen = false;
-      state->gate.window_seen = state->evaluated &&
+      state->gate.window_seen = kws_seen && state->evaluated &&
         !state->gate.invalid && !state->gate.emitted &&
         state->transcript.confidence >= state->config.threshold &&
-        strcmp(state->transcript.text,
-               "\xe8\xb1\x86\xe5\x8c\x85\xe8\xb1\x86\xe5\x8c\x85") == 0;
+        strstr(state->transcript.text, "\xe5\x8c\x85") != NULL;
       if (state->gate.window_seen)
         {
-          state->gate.wake.score =
-            (uint16_t)lround(state->transcript.confidence * 32768);
-          state->gate.wake.margin = 0;
+          state->gate.wake.label = TITAN_WAKE_WINDOW;
         }
     }
 

@@ -72,6 +72,11 @@ action. Unknown utterances consume the window. “停止” stops the most recen
 started active recording. Companion mode is intentionally unavailable in this
 demo because it would bypass the fresh-wake requirement.
 
+Wake authorization combines consecutive dedicated-KWS detections with an
+independent ASR transcript containing “包”. The ASR check tolerates a first
+syllable substitution such as “很包”; requiring the second syllable prevents
+the dedicated KWS false positives observed on all five bare action commands.
+
 The camera saves 24-bit BMP photos and standard single-stream YUY2 AVI files.
 AVI contains video only; simultaneous recording produces a separate WAV,
 16 kHz, signed 16-bit mono. Recording reuses the recognition frontend PCM
@@ -113,9 +118,10 @@ finalization. `demo-status` is available while the main task is running.
 
 `titan_asr demo DIRECTORY SECONDS MODE` allows a bounded run (0 seconds means
 continuous), with 0=raw microphone mean, 1=AEC mean, 2=AEC beam. The default is
-2. Raw mode is useful when the onboard speaker intentionally plays test
-commands; AEC would suppress those commands as playback echo. The verified
-speaker volume remains codec register 0x14 = 0x80.
+0 in the `asrdemo` profile because no assistant playback runs during normal
+operation and raw mean recognized the measured human wake more accurately.
+AEC would also suppress commands intentionally played by the onboard speaker.
+The verified speaker volume remains codec register 0x14 = 0x80.
 
 For integration diagnostics, `titan_asr demo-replay PCM BLOCKS MODE DIRECTORY`
 feeds interleaved 16 kHz L/R/reference blocks to the same strict gate and real
